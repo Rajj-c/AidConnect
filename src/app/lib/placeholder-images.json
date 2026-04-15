@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-image",
+      "description": "Volunteers helping people in a community",
+      "imageUrl": "https://picsum.photos/seed/aidconnect-hero/1200/800",
+      "imageHint": "volunteers community"
+    },
+    {
+      "id": "food-aid",
+      "description": "Food distribution center",
+      "imageUrl": "https://picsum.photos/seed/food-aid/600/400",
+      "imageHint": "food distribution"
+    },
+    {
+      "id": "medical-camp",
+      "description": "Doctors helping patients at a temporary camp",
+      "imageUrl": "https://picsum.photos/seed/medical-camp/600/400",
+      "imageHint": "medical camp"
+    }
+  ]
+}
