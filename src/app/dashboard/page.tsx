@@ -25,7 +25,8 @@ import {
   AlertTriangle, 
   Map as MapIcon, 
   Clock,
-  ArrowUpRight
+  ArrowUpRight,
+  Zap
 } from "lucide-react";
 
 const impactData = [
