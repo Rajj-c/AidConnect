@@ -20,6 +20,10 @@ const PrioritizeNeedsInputSchema = z.object({
     .string()
     .optional()
     .describe('Optional: The geographical location where the data was collected.'),
+  imageUrl: z
+    .string()
+    .optional()
+    .describe('Optional: Base64 data URI of a handwritten paper survey or field image.')
 });
 export type PrioritizeNeedsInput = z.infer<typeof PrioritizeNeedsInputSchema>;
 
@@ -58,33 +62,6 @@ export async function prioritizeNeeds(
   return prioritizeNeedsFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'prioritizeNeedsPrompt',
-  input: { schema: PrioritizeNeedsInputSchema },
-  output: { schema: PrioritizeNeedsOutputSchema },
-  prompt: `You are an expert humanitarian aid analyst. Your task is to analyze raw ground-level data to identify urgent community needs, categorize them, and assign appropriate priority levels. Think step-by-step to evaluate each piece of information.
-
-Consider the following criteria for prioritization:
--   **Severity**: How critical is the impact of the issue on the community?
--   **Number of people affected**: How many individuals are impacted?
--   **Time sensitivity**: How quickly does this need to be addressed to prevent further harm or deterioration?
-
-Based on the provided collected data, perform the following:
-1.  Identify all distinct community needs.
-2.  For each identified need, assign a category: 'Food', 'Health', 'Education', 'Shelter', 'Water', or 'Other'.
-3.  Assign a priority level to each need: 'High', 'Medium', or 'Low', justifying your reasoning.
-4.  Provide an overall summary highlighting the most critical issues.
-
-Collected Data:
-{{{collectedData}}}
-
-{{#if location}}
-Location: {{{location}}}
-{{/if}}
-
-`,
-});
-
 const prioritizeNeedsFlow = ai.defineFlow(
   {
     name: 'prioritizeNeedsFlow',
@@ -92,7 +69,38 @@ const prioritizeNeedsFlow = ai.defineFlow(
     outputSchema: PrioritizeNeedsOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return output!;
+    const systemInstructions = `You are an expert humanitarian aid analyst. Your task is to analyze raw ground-level data (and optionally an image of a handwritten paper survey/field report) to identify urgent community needs, categorize them, and assign appropriate priority levels. Think step-by-step to evaluate each piece of information.
+
+Consider the following criteria for prioritization:
+-   **Severity**: How critical is the impact of the issue on the community?
+-   **Number of people affected**: How many individuals are impacted?
+-   **Time sensitivity**: How quickly does this need to be addressed to prevent further harm or deterioration?
+
+Based on the provided collected data and image, perform the following:
+1.  Identify all distinct community needs.
+2.  For each identified need, assign a category: 'Food', 'Health', 'Education', 'Shelter', 'Water', or 'Other'.
+3.  Assign a priority level to each need: 'High', 'Medium', or 'Low', justifying your reasoning.
+4.  Provide an overall summary highlighting the most critical issues.
+
+Collected Data (if any):
+${input.collectedData}
+
+Location (if any):
+${input.location || 'N/A'}
+`;
+
+    // Dynamic prompt array supporting Multimodal Vision
+    const promptArray: any[] = [{ text: systemInstructions }];
+    
+    if (input.imageUrl) {
+      promptArray.push({ media: { url: input.imageUrl } });
+    }
+
+    const response = await ai.generate({
+      prompt: promptArray,
+      output: { schema: PrioritizeNeedsOutputSchema }
+    });
+
+    return response.output!;
   }
 );
