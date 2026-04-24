@@ -4,6 +4,34 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { auth } from "@/lib/firebase";
+
+// Define exactly which routes each role is allowed to visit
+const ROLE_HOME: Record<string, string> = {
+  Admin: "/dashboard",
+  NGO: "/dashboard",
+  Volunteer: "/dashboard/missions",
+};
+
+const ADMIN_ROUTES = [
+  "/dashboard", "/dashboard/ngos", "/dashboard/dispatch",
+  "/dashboard/settings", "/seed", "/dashboard/admin"
+];
+const NGO_ROUTES = [
+  "/dashboard", "/dashboard/dispatch", "/dashboard/heatmap",
+  "/dashboard/reports", "/dashboard/needs", "/dashboard/volunteers",
+  "/dashboard/analytics", "/dashboard/impact", "/dashboard/settings",
+  "/dashboard/my-volunteers",
+];
+const VOLUNTEER_ROUTES = ["/dashboard/missions", "/dashboard/settings"];
+
+function isAllowed(role: string | null, pathname: string): boolean {
+  if (!role) return false;
+  if (role === "Admin") return ADMIN_ROUTES.some(r => pathname === r || pathname.startsWith(r + "/"));
+  if (role === "NGO") return NGO_ROUTES.some(r => pathname === r || pathname.startsWith(r + "/"));
+  if (role === "Volunteer") return VOLUNTEER_ROUTES.some(r => pathname === r || pathname.startsWith(r + "/"));
+  return false;
+}
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const { user, approvalStatus, userRole, loading } = useAuth();
@@ -12,39 +40,51 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    
-    // If not logged in, let the other logic (if any) handle it, or force login
+
+    // No user → login
     if (!user) {
       router.replace("/login");
       return;
     }
 
-    // Guard /dashboard routes
-    if (pathname.startsWith("/dashboard")) {
-      // 1. Pending/Rejected Gateway
-      if (approvalStatus === "Pending" || approvalStatus === "Rejected") {
-        router.replace("/status");
-        return;
-      }
-      
-      // 2. Strict Role-Based Restrictions
-      if (userRole === "Volunteer" && pathname !== "/dashboard/missions" && pathname !== "/dashboard/settings") {
-        router.replace("/dashboard/missions");
-        return;
-      }
-      
-      if (userRole === "NGO" && (pathname === "/dashboard/ngos" || pathname === "/dashboard/missions")) {
-        router.replace("/dashboard");
-        return;
-      }
+    // Email not verified
+    const emailVerified = auth?.currentUser?.emailVerified ?? user.emailVerified;
+    if (!emailVerified && pathname !== "/verify-email") {
+      router.replace(`/verify-email?email=${encodeURIComponent(user.email ?? "")}`);
+      return;
+    }
 
-      if (userRole === "Admin" && pathname !== "/dashboard" && pathname !== "/dashboard/ngos" && pathname !== "/dashboard/settings") {
-        router.replace("/dashboard");
+    // Onboarding incomplete — force to role-specific onboarding
+    if (approvalStatus === "Incomplete") {
+      if (userRole === "Volunteer" && pathname !== "/onboarding") {
+        router.replace("/onboarding");
+        return;
+      }
+      if (userRole === "NGO" && pathname !== "/ngo-onboarding") {
+        router.replace("/ngo-onboarding");
+        return;
+      }
+    }
+
+    // Pending/Rejected — force to /status
+    if (
+      (approvalStatus === "Pending" || approvalStatus === "Rejected") &&
+      pathname !== "/status"
+    ) {
+      router.replace("/status");
+      return;
+    }
+
+    // Approved users accessing dashboard — enforce role-based routes
+    if (pathname.startsWith("/dashboard") && approvalStatus === "Approved") {
+      if (!isAllowed(userRole, pathname)) {
+        router.replace(ROLE_HOME[userRole ?? ""] ?? "/dashboard");
         return;
       }
     }
   }, [user, approvalStatus, userRole, loading, router, pathname]);
 
+  // ── Render guards (prevent flash of unauthorized content) ──
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
@@ -53,12 +93,20 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Prevent flash of unauthorized content before redirect fires
-  if (pathname.startsWith("/dashboard")) {
-    if (approvalStatus === "Pending" || approvalStatus === "Rejected") return null;
-    if (userRole === "Volunteer" && pathname !== "/dashboard/missions" && pathname !== "/dashboard/settings") return null;
-    if (userRole === "NGO" && (pathname === "/dashboard/ngos" || pathname === "/dashboard/missions")) return null;
-    if (userRole === "Admin" && pathname !== "/dashboard" && pathname !== "/dashboard/ngos" && pathname !== "/dashboard/settings") return null;
+  if (!user) return null;
+
+  const emailVerified = auth?.currentUser?.emailVerified ?? user.emailVerified;
+  if (!emailVerified && pathname !== "/verify-email") return null;
+
+  if (approvalStatus === "Incomplete") {
+    if (userRole === "Volunteer" && pathname !== "/onboarding") return null;
+    if (userRole === "NGO" && pathname !== "/ngo-onboarding") return null;
+  }
+
+  if ((approvalStatus === "Pending" || approvalStatus === "Rejected") && pathname !== "/status") return null;
+
+  if (pathname.startsWith("/dashboard") && approvalStatus === "Approved") {
+    if (!isAllowed(userRole, pathname)) return null;
   }
 
   return <>{children}</>;

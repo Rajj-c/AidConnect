@@ -37,6 +37,7 @@ export default function ReportsPage() {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [analysisResult, setAnalysisResult] = useState<PrioritizeNeedsOutput | null>(null);
+  const [savedNeeds, setSavedNeeds] = useState<Set<number>>(new Set());
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const captureInputRef = useRef<HTMLInputElement>(null);
@@ -133,26 +134,32 @@ export default function ReportsPage() {
 
   if (userRole === "Volunteer") return null;
 
-  async function handleSaveNeed(need: any) {
+  async function handleSaveNeed(need: any, index: number) {
     if (!user) {
       toast({ title: "You must be logged in to save needs", variant: "destructive" });
       return;
     }
     try {
-      await addNeed({
+      const payload: any = {
         description: need.description,
         category: need.category,
         priority: need.priority,
         reasons: need.reasons,
         location: location || "Unknown Region",
-        lat: geoCoords?.lat,
-        lng: geoCoords?.lng,
         status: "Open",
         createdBy: user.uid
-      });
+      };
+      
+      if (geoCoords) {
+        payload.lat = geoCoords.lat;
+        payload.lng = geoCoords.lng;
+      }
+
+      await addNeed(payload);
+      setSavedNeeds(prev => new Set(prev).add(index));
       toast({ title: "Need Saved ✓", description: "This need is now synced across all active dashboards." });
-    } catch {
-      toast({ title: "Error saving need", description: "Could not reach database.", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Error saving need", description: err.message || "Could not reach database.", variant: "destructive" });
     }
   }
 
@@ -352,11 +359,12 @@ export default function ReportsPage() {
                       <div className="flex gap-2 mt-3">
                         <Button 
                           size="sm" 
-                          variant="outline" 
-                          className="text-xs h-7"
-                          onClick={() => handleSaveNeed(need)}
+                          variant={savedNeeds.has(i) ? "default" : "outline"} 
+                          className={`text-xs h-7 ${savedNeeds.has(i) ? "bg-green-600 text-white hover:bg-green-700 pointer-events-none" : ""}`}
+                          disabled={savedNeeds.has(i)}
+                          onClick={() => handleSaveNeed(need, i)}
                         >
-                          Save to Needs
+                          {savedNeeds.has(i) ? <><CheckCircle className="h-3 w-3 mr-1" /> Saved</> : "Save to Needs"}
                         </Button>
                         <Button size="sm" className="text-xs h-7 gap-1">
                           <Users className="h-3 w-3" /> Find Volunteers

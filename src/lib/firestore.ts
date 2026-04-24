@@ -24,7 +24,7 @@ export interface UserProfile {
   email: string;
   name: string;
   role: "Admin" | "NGO" | "Volunteer";
-  approvalStatus: "Pending" | "Approved" | "Rejected";
+  approvalStatus: "Incomplete" | "Pending" | "Approved" | "Rejected";
   rejectionCount: number;
   createdAt: Timestamp | null;
 }
@@ -50,7 +50,7 @@ export interface TaskDoc {
   title: string;
   assignedVolunteerId: string;
   assignedVolunteerName: string;
-  status: "Pending" | "In Progress" | "Completed" | "Failed";
+  status: "Pending" | "Acknowledged" | "En Route" | "On Site" | "In Progress" | "Completed" | "Verified" | "Failed";
   priority: "High" | "Medium" | "Low";
   location: string;
   lat?: number;
@@ -63,7 +63,9 @@ export interface TaskDoc {
     rating: number;
     success: boolean;
     note: string;
+    imageUrl?: string;
   };
+  ngoId?: string; // which NGO owns this task
 }
 
 export interface VolunteerDoc {
@@ -71,7 +73,10 @@ export interface VolunteerDoc {
   userId: string;
   name: string;
   role: string;
+  gender?: "male" | "female" | "other";
   skills: string[];
+  languages?: string[];
+  phone?: string;
   location: string;
   availability: string;
   status: "Available" | "Busy";
@@ -80,6 +85,10 @@ export interface VolunteerDoc {
   distance?: string;
   lat?: number;
   lng?: number;
+  // NGO Assignment
+  ngoId?: string;
+  ngoName?: string;
+  assignedAt?: Timestamp | null;
 }
 
 export interface NotificationDoc {
@@ -89,6 +98,41 @@ export interface NotificationDoc {
   type: "alert" | "success" | "info";
   read: boolean;
   createdAt: Timestamp | null;
+}
+
+export interface NGOProfile {
+  uid: string;
+  // Identity
+  orgName: string;
+  orgType: "Trust" | "Society" | "Section8" | "INGO" | "Government" | "Other";
+  yearEstablished: string;
+  missionStatement: string;
+  // Legal & Compliance (India)
+  registrationNumber: string;
+  panNumber: string;
+  ngo12AStatus: boolean;
+  ngo80GStatus: boolean;
+  fcraRegistered: boolean;
+  ngoDarpanId: string;
+  // Contact & Location
+  officialAddress: string;
+  city: string;
+  state: string;
+  pinCode: string;
+  phone: string;
+  website: string;
+  // Operational Details
+  focusAreas: string[];
+  geographicScope: "Local" | "State" | "National" | "International";
+  operationalStates: string[];
+  activeVolunteers: string;
+  annualBudgetRange: string;
+  // Capacity
+  providesAccommodation: boolean;
+  hasVehicles: boolean;
+  hasMedicalFacilities: boolean;
+  languagesSupported: string[];
+  createdAt?: Timestamp | null;
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -162,14 +206,68 @@ export async function submitTaskFeedback(taskId: string, feedback: TaskDoc["feed
   });
 }
 
+export async function verifyTask(taskId: string, volunteerId: string) {
+  await updateDoc(doc(db!, "tasks", taskId), { status: "Verified" });
+  const volRef = doc(db!, "volunteers", volunteerId);
+  const volSnap = await getDoc(volRef);
+  if (volSnap.exists()) {
+    await updateDoc(volRef, { tasksCompleted: increment(1) });
+  }
+}
+
 // ─── Volunteers ──────────────────────────────────────────────────────────────
 
 export const volunteersCollection = () => collection(db!, "volunteers");
+
+export async function createVolunteerProfile(uid: string, data: Omit<VolunteerDoc, "id" | "userId" | "tasksCompleted" | "rating" | "status" | "role">) {
+  const volunteerRef = doc(db!, "volunteers", uid);
+  await setDoc(volunteerRef, {
+    ...data,
+    userId: uid,
+    role: "General Support",
+    status: "Available",
+    tasksCompleted: 0,
+    rating: 5,
+  });
+}
+
+export async function createNGOProfile(uid: string, data: Omit<NGOProfile, "uid" | "createdAt">) {
+  await setDoc(doc(db!, "ngos", uid), { ...data, uid, createdAt: serverTimestamp() });
+}
 
 export function subscribeToVolunteers(callback: (volunteers: VolunteerDoc[]) => void, maxCount = 50) {
   const q = query(volunteersCollection(), orderBy("rating", "desc"), limit(maxCount));
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc)));
+  });
+}
+
+export function subscribeToVolunteersByNGO(ngoId: string, callback: (volunteers: VolunteerDoc[]) => void) {
+  const q = query(volunteersCollection(), where("ngoId", "==", ngoId));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc)));
+  });
+}
+
+export async function assignVolunteerToNGO(volunteerId: string, ngoId: string, ngoName: string) {
+  await updateDoc(doc(db!, "volunteers", volunteerId), {
+    ngoId,
+    ngoName,
+    assignedAt: serverTimestamp(),
+  });
+}
+
+export function subscribeToApprovedNGOs(callback: (ngos: NGOProfile[]) => void) {
+  const q = collection(db!, "ngos");
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ ...d.data() } as NGOProfile)));
+  });
+}
+
+export function subscribeToTasksByNGO(ngoId: string, callback: (tasks: TaskDoc[]) => void) {
+  const q = query(tasksCollection(), where("ngoId", "==", ngoId), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
   });
 }
 

@@ -36,13 +36,16 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await signUp(email, password, name, role as any);
-      router.replace("/dashboard");
+      // Account created — user is signed out, redirect to verify-email page
+      router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : (err?.message || "Registration failed.");
       if (msg.includes("email-already-in-use")) {
-        setError("This email is already registered. Please log in.");
+        setError("This email is already registered. Please log in instead.");
+      } else if (msg.includes("invalid-email")) {
+        setError("Please enter a valid email address.");
       } else {
-        setError(`Error: ${msg}`);
+        setError(`Registration failed: ${msg}`);
       }
     } finally {
       setLoading(false);

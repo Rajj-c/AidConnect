@@ -1,230 +1,264 @@
-
 "use client";
 
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  subscribeToApprovedNGOs, subscribeToVolunteers, subscribeToTasks, assignVolunteerToNGO,
+  NGOProfile, VolunteerDoc, TaskDoc, subscribeToPendingUsers, UserProfile
+} from "@/lib/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell
-} from "recharts";
-import {
-  Users, CheckCircle2, AlertTriangle,
-  Map as MapIcon, Clock, ArrowUpRight
-} from "lucide-react";
-import { EmergencyModeDialog } from "@/components/EmergencyModeDialog";
-import dynamic from 'next/dynamic';
-import { useEffect, useState } from "react";
-import { subscribeToTasks, subscribeToNeeds, subscribeToVolunteers, submitTaskFeedback, TaskDoc, NeedDoc, VolunteerDoc } from "@/lib/firestore";
-import { formatDistanceToNow } from "date-fns";
-import { useAuth } from "@/contexts/AuthContext";
-import { Progress } from "@/components/ui/progress";
+import { Building2, Users, CheckCircle2, Clock, ShieldAlert, TrendingUp, MapPin, ChevronRight, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-const DynamicMap = dynamic(() => import('@/components/MapComponent'), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-blue-50/50 text-muted-foreground gap-2 min-h-[250px]">
-      <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
-      <p className="text-xs">Loading Live Map...</p>
-    </div>
-  )
-});
-
-
-
-const COLORS = ["#1566ED", "#33B233", "#F59E0B", "#EF4444"];
-
-function handleEmergencyActivate(type: string, region: string) {
-  localStorage.setItem("emergencyActive", "true");
-  localStorage.setItem("emergencyInfo", JSON.stringify({ type, region }));
-  window.dispatchEvent(new CustomEvent("emergencyActivated", { detail: { type, region } }));
-}
-
-export default function DashboardPage() {
+export default function AdminDashboard() {
   const { userRole } = useAuth();
+  const router = useRouter();
+  const [ngos, setNGOs] = useState<NGOProfile[]>([]);
+  const [volunteers, setVolunteers] = useState<VolunteerDoc[]>([]);
   const [tasks, setTasks] = useState<TaskDoc[]>([]);
-  const [needs, setNeeds] = useState<NeedDoc[]>([]);
-  const [vols, setVols] = useState<VolunteerDoc[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [selectedNGOs, setSelectedNGOs] = useState<Record<string, string>>({});
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const getAvatarUrl = (gender?: string) => {
+    if (gender === "female") return `/avatar-female.svg`;
+    return `/avatar-male.svg`;
+  };
 
   useEffect(() => {
-    const unsub1 = subscribeToTasks(setTasks);
-    const unsub2 = subscribeToNeeds(setNeeds);
-    const unsub3 = subscribeToVolunteers(setVols);
-    return () => { unsub1(); unsub2(); unsub3(); };
-  }, []);
+    if (userRole !== "Admin") return;
+    const u1 = subscribeToApprovedNGOs(setNGOs);
+    const u2 = subscribeToVolunteers(setVolunteers);
+    const u3 = subscribeToTasks(setTasks);
+    const u4 = subscribeToPendingUsers(setPendingUsers);
+    return () => { u1(); u2(); u3(); u4(); };
+  }, [userRole]);
 
-  const activeVolsCount = vols.length > 0 ? vols.filter(v => v.status === "Available").length : "1,280";
-  const tasksCompletedCount = tasks.length > 0 ? tasks.filter(t => t.status === "Completed").length : "410";
-  const highPriorityNeedsCount = needs.length > 0 ? needs.filter(n => n.priority === "High").length : "20";
+  if (userRole !== "Admin") return null;
 
-  // Compute category map
-  const catMap = new Map<string, number>();
-  needs.forEach(n => {
-    catMap.set(n.category, (catMap.get(n.category) || 0) + 1);
-  });
-  const dynamicCategoryData = Array.from(catMap.entries()).map(([name, value]) => ({ name, value }));
-  const finalCategoryData = dynamicCategoryData.length > 0 ? dynamicCategoryData : [
-    { name: "Food", value: 1 },
-    { name: "Health", value: 1 }
-  ];
+  const completedTasks = tasks.filter(t => t.status === "Verified" || t.status === "Completed").length;
+  const assignedVolunteers = volunteers.filter(v => v.ngoId).length;
+  const unassignedVolunteers = volunteers.filter(v => !v.ngoId).length;
 
-  // Derive mock impact data (normally this would aggregate over time)
-  const impactData = [
-    { name: "Jan", helped: 400 },
-    { name: "Feb", helped: 300 },
-    { name: "Mar", helped: 600 },
-    { name: "Apr", helped: 800 },
-    { name: "May", helped: 500 },
-    { name: "Live", helped: tasks.filter(t => t.status === "Completed").length * 5 + 900 },
-  ];
+  // Count volunteers per NGO
+  const volunteersByNGO: Record<string, number> = {};
+  volunteers.forEach(v => { if (v.ngoId) volunteersByNGO[v.ngoId] = (volunteersByNGO[v.ngoId] || 0) + 1; });
 
-  const latestNeeds = needs.slice(0, 4).map(n => ({
-    time: n.createdAt ? formatDistanceToNow(n.createdAt.toDate(), { addSuffix: true }) : "just now",
-    title: n.priority === "High" ? "New High Priority Need" : "New Need Logged",
-    desc: n.description,
-    type: n.priority === "High" ? "high" : "info" as string
-  }));
+  const tasksByNGO: Record<string, number> = {};
+  tasks.forEach(t => { if (t.ngoId) tasksByNGO[t.ngoId] = (tasksByNGO[t.ngoId] || 0) + 1; });
 
-  const latestAlerts = latestNeeds.length > 0 ? latestNeeds : [
-    { time: "2m ago", title: "New High Priority Need", desc: "Medical camp requested in Jubilee Hills", type: "high" },
-  ];
+  const unassignedVolunteersList = volunteers.filter(v => !v.ngoId);
+
+  async function handleAssign(volunteerId: string) {
+    const ngoId = selectedNGOs[volunteerId];
+    if (!ngoId) {
+      toast({ title: "Select NGO", description: "Please select an NGO to assign.", variant: "destructive" });
+      return;
+    }
+    const ngo = ngos.find(n => n.uid === ngoId);
+    if (!ngo) return;
+
+    setProcessingId(volunteerId);
+    try {
+      await assignVolunteerToNGO(volunteerId, ngoId, ngo.orgName);
+      toast({ title: "Assigned Successfully", description: `Volunteer assigned to ${ngo.orgName}` });
+    } catch {
+      toast({ title: "Assignment Failed", description: "There was an error assigning the volunteer.", variant: "destructive" });
+    } finally {
+      setProcessingId(null);
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold font-headline text-foreground">Operational Overview</h1>
-          <p className="text-muted-foreground">Real-time insights from community field reports.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Clock className="h-4 w-4" /> Past 30 Days
-          </Button>
-          <EmergencyModeDialog onActivate={handleEmergencyActivate} />
-        </div>
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-3xl font-bold font-headline">Admin Command Centre</h1>
+        <p className="text-muted-foreground mt-1">Full platform overview across all NGOs and volunteers.</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Platform Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Available Volunteers", value: activeVolsCount, delta: "Live", desc: "tracked in db", icon: Users, iconColor: "text-primary", deltaColor: "text-accent" },
-          { label: "High Priority Needs", value: highPriorityNeedsCount, delta: "Live", desc: "urgent requests", icon: AlertTriangle, iconColor: "text-destructive", deltaColor: "text-destructive" },
-          { label: "Tasks Completed", value: tasksCompletedCount, delta: "Live", desc: "synced globally", icon: CheckCircle2, iconColor: "text-accent", deltaColor: "text-accent" },
-          { label: "Active Subscriptions", value: "3", delta: "Live", desc: "connected to firebase", icon: Clock, iconColor: "text-primary", deltaColor: "text-accent" },
-        ].map(({ label, value, delta, desc, icon: Icon, iconColor, deltaColor }) => (
-          <Card key={label} className="shadow-sm border-none bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-              <Icon className={`h-4 w-4 ${iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold font-headline">{value}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                <span className={`font-bold ${deltaColor}`}>{delta}</span> {desc}
-              </p>
+          { label: "Total NGOs", value: ngos.length, icon: Building2, color: "bg-blue-50 text-blue-600" },
+          { label: "Total Volunteers", value: volunteers.length, icon: Users, color: "bg-green-50 text-green-600" },
+          { label: "Tasks Completed", value: completedTasks, icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
+          { label: "Pending Approvals", value: pendingUsers.length, icon: ShieldAlert, color: "bg-amber-50 text-amber-600" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="border-none shadow-sm bg-white">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${color}`}><Icon className="h-5 w-5" /></div>
+              <div>
+                <p className="text-2xl font-black text-slate-800">{value}</p>
+                <p className="text-xs text-muted-foreground font-medium">{label}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        {/* Main Chart */}
-        <Card className="lg:col-span-4 shadow-sm border-none bg-white">
-          <CardHeader>
-            <CardTitle className="font-headline text-lg">People Helped Trend</CardTitle>
-            <CardDescription>Number of individuals assisted over time.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={impactData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <RechartsTooltip />
-                <Line type="monotone" dataKey="helped" stroke="#1566ED" strokeWidth={3} dot={{ r: 4, fill: "#1566ED" }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Hotspot Map */}
-        <Card className="lg:col-span-3 shadow-sm border-none bg-white overflow-hidden flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle className="font-headline text-lg flex items-center gap-2">
-              <MapIcon className="h-5 w-5 text-primary" /> Hotspot Map
-            </CardTitle>
-            <CardDescription>Live visualization of prioritized needs.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 relative min-h-[250px] p-0 z-0">
-            <DynamicMap />
-            <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg border shadow-sm flex justify-between items-center z-[400] pointer-events-none">
-              <span className="text-xs font-semibold">Gachibowli Area, Hyderabad</span>
-              <Badge variant="destructive" className="animate-pulse">Emergency</Badge>
+      {/* Volunteer Assignment Overview */}
+      <Card className="border-none shadow-sm bg-white">
+        <CardHeader className="flex flex-row items-center gap-3 pb-4">
+          <div className="p-2 bg-green-50 rounded-xl"><TrendingUp className="h-5 w-5 text-green-600" /></div>
+          <div>
+            <CardTitle className="font-headline text-lg">Volunteer Assignment Status</CardTitle>
+            <CardDescription>Track which volunteers are assigned to NGOs.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-6">
+            <div className="text-center">
+              <p className="text-3xl font-black text-green-600">{assignedVolunteers}</p>
+              <p className="text-xs text-muted-foreground">Assigned</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Categories Pie Chart */}
-        <Card className="shadow-sm border-none bg-white">
-          <CardHeader>
-            <CardTitle className="font-headline text-lg">Need Categories</CardTitle>
-            <CardDescription>Distribution of requested assistance types.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={finalCategoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {finalCategoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <RechartsTooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex justify-center gap-4 text-xs mt-2 w-full flex-wrap">
-              {finalCategoryData.map((entry, index) => (
-                <div key={entry.name} className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                  <span>{entry.name}</span>
-                </div>
-              ))}
+            <div className="text-center">
+              <p className="text-3xl font-black text-amber-500">{unassignedVolunteers}</p>
+              <p className="text-xs text-muted-foreground">Unassigned</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Alerts */}
-        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="font-headline text-lg">Recent Alerts</CardTitle>
-              <CardDescription>Real-time notifications from the field.</CardDescription>
+            <div className="text-center">
+              <p className="text-3xl font-black text-slate-800">{volunteers.length}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
-            <Button variant="ghost" size="sm" className="text-primary gap-1">
-              View all <ArrowUpRight className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {latestAlerts.map((alert, i) => (
-              <div key={i} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
-                  alert.type === "high" ? "bg-destructive" : alert.type === "success" ? "bg-accent" : "bg-primary"
-                }`} />
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <p className="text-sm font-semibold">{alert.title}</p>
-                    <span className="text-[10px] text-muted-foreground uppercase">{alert.time}</span>
+          </div>
+          {unassignedVolunteers > 0 && (
+            <div className="mt-4 flex items-center gap-2 bg-amber-50 text-amber-700 text-sm p-3 rounded-lg border border-amber-200">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {unassignedVolunteers} volunteer{unassignedVolunteers > 1 ? "s" : ""} pending NGO assignment.
+              <Link href="/dashboard/ngos" className="ml-auto font-semibold underline hover:no-underline">Go to Verifications →</Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* NGO Registry */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold font-headline flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-primary" /> NGO Registry
+          </h2>
+          <Badge variant="secondary">{ngos.length} registered</Badge>
+        </div>
+
+        {ngos.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-xl border border-dashed text-muted-foreground">
+            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">No NGOs registered yet</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {ngos.map(ngo => (
+              <Card key={ngo.uid} className="border-none shadow-sm bg-white hover:shadow-md transition-shadow cursor-pointer group">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-900 text-base leading-tight">{ngo.orgName}</p>
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide mt-0.5">{ngo.orgType}</p>
+                    </div>
+                    <div className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-bold ${
+                      (volunteersByNGO[ngo.uid] || 0) > 0 ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+                    }`}>
+                      {volunteersByNGO[ngo.uid] || 0} volunteers
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{alert.desc}</p>
-                </div>
-              </div>
+
+                  <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                    <MapPin className="h-3.5 w-3.5" /> {ngo.city}, {ngo.state}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1">
+                    {ngo.focusAreas.slice(0, 2).map(f => (
+                      <Badge key={f} variant="secondary" className="text-[10px] bg-primary/5 text-primary border-none">{f}</Badge>
+                    ))}
+                    {ngo.focusAreas.length > 2 && (
+                      <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-500">+{ngo.focusAreas.length - 2}</Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                    <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {tasksByNGO[ngo.uid] || 0} tasks</span>
+                    <Button asChild variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary group-hover:bg-primary/5 p-2">
+                      <Link href={`/dashboard/admin/ngo/${ngo.uid}`}>
+                        View Details <ChevronRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
+
+      {/* Unassigned Volunteers */}
+      {unassignedVolunteersList.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold font-headline flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" /> Action Required: Unassigned Volunteers
+            </h2>
+            <Badge variant="secondary" className="bg-amber-100 text-amber-700">{unassignedVolunteersList.length} pending</Badge>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {unassignedVolunteersList.map(v => (
+              <Card key={v.id} className="border-amber-200 bg-amber-50/30 shadow-sm overflow-hidden">
+                <div className="h-1 bg-amber-400 w-full" />
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10 border border-amber-200">
+                      <AvatarImage src={getAvatarUrl(v.gender)} />
+                      <AvatarFallback className="text-amber-700 font-bold bg-amber-100">{v.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-900 text-sm">{v.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{v.location}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1">
+                    {v.skills.slice(0, 3).map(s => (
+                      <Badge key={s} variant="outline" className="text-[10px] bg-white">{s}</Badge>
+                    ))}
+                    {v.skills.length > 3 && <Badge variant="outline" className="text-[10px] bg-white">+{v.skills.length - 3}</Badge>}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-amber-100">
+                    <Select
+                      value={selectedNGOs[v.id] || ""}
+                      onValueChange={(val) => setSelectedNGOs(prev => ({ ...prev, [v.id]: val }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white border-amber-200 flex-1">
+                        <SelectValue placeholder="Select NGO..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ngos.map(n => (
+                          <SelectItem key={n.uid} value={n.uid} className="text-xs">
+                            {n.orgName} ({n.city})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      size="sm" 
+                      className="h-8 text-xs shrink-0 bg-amber-600 hover:bg-amber-700"
+                      onClick={() => handleAssign(v.id)}
+                      disabled={processingId === v.id}
+                    >
+                      {processingId === v.id ? "Assigning..." : "Assign"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,18 +10,23 @@ import { Button } from "@/components/ui/button";
 import { Zap, X } from "lucide-react";
 import {
   LayoutDashboard, FileText, Target, Users, BarChart3,
-  Settings, TrendingUp, Building2
+  Settings, TrendingUp, Building2, DatabaseZap, ShieldAlert, Flame, ScanLine
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const adminNavItems = [
   { href: "/dashboard", label: "System Health", icon: LayoutDashboard, tooltip: "Metrics" },
-  { href: "/dashboard/ngos", label: "Manage NGOs", icon: Building2, tooltip: "Verification Board" },
+  { href: "/dashboard/ngos", label: "Verifications", icon: ShieldAlert, tooltip: "Pending Approvals" },
+  { href: "/dashboard/dispatch", label: "AI Dispatch", icon: Target, tooltip: "Command Centre" },
+  { href: "/seed", label: "Seed Demo Data", icon: DatabaseZap, tooltip: "Inject Demo DB Records" },
 ];
 
 const ngoNavItems = [
   { href: "/dashboard", label: "Operations Map", icon: LayoutDashboard, tooltip: "Dashboard" },
-  { href: "/dashboard/reports", label: "Field Reports", icon: FileText, tooltip: "AI Scanner" },
+  { href: "/dashboard/my-volunteers", label: "My Volunteers", icon: Users, tooltip: "Your Team" },
+  { href: "/dashboard/dispatch", label: "AI Dispatch", icon: ShieldAlert, tooltip: "Command Centre" },
+  { href: "/dashboard/heatmap", label: "Urgency Heatmap", icon: Flame, tooltip: "Live Heat Map" },
+  { href: "/dashboard/reports", label: "Field Scanner", icon: ScanLine, tooltip: "OCR AI Scanner" },
   { href: "/dashboard/needs", label: "Prioritized Needs", icon: Target, tooltip: "Target Tasks" },
   { href: "/dashboard/volunteers", label: "Volunteer Hub", icon: Users, tooltip: "Dispatch" },
   { href: "/dashboard/analytics", label: "Impact Analytics", icon: BarChart3, tooltip: "Analytics" },

@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,34 +10,50 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserCircle } from "lucide-react";
+import { UserCircle, LogOut, ShieldCheck, Users, Building2 } from "lucide-react";
 
-export type UserRole = "Admin" | "NGO" | "Volunteer";
+const ROLE_CONFIG = {
+  Admin: { icon: ShieldCheck, color: "text-primary", bg: "bg-primary/10" },
+  NGO: { icon: Building2, color: "text-accent-foreground", bg: "bg-accent/20" },
+  Volunteer: { icon: Users, color: "text-green-700", bg: "bg-green-50" },
+} as const;
 
 export function RoleSwitcher() {
-  const [role, setRole] = useState<UserRole>("NGO");
+  const { userRole, user, logOut } = useAuth();
 
-  // In a real app, this would update a context or session
-  useEffect(() => {
-    localStorage.setItem("userRole", role);
-  }, [role]);
+  if (!userRole || !user) return null;
+
+  const config = ROLE_CONFIG[userRole] ?? { icon: UserCircle, color: "text-muted-foreground", bg: "bg-muted" };
+  const RoleIcon = config.icon;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <UserCircle className="h-4 w-4" />
-          <span>{role}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`gap-2 border-transparent ${config.bg} ${config.color} font-semibold hover:opacity-80`}
+        >
+          <RoleIcon className="h-4 w-4" />
+          <span>{userRole}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Switch Role (Demo)</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col gap-0.5">
+            <p className="font-semibold text-sm">{user.displayName || "User"}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className={`text-xs font-bold uppercase tracking-wide mt-1 ${config.color}`}>{userRole}</p>
+          </div>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {(["Admin", "NGO", "Volunteer"] as UserRole[]).map((r) => (
-          <DropdownMenuItem key={r} onClick={() => setRole(r)}>
-            {r}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive focus:bg-destructive/10 gap-2"
+          onClick={() => logOut()}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
