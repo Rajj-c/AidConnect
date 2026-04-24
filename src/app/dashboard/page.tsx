@@ -16,6 +16,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { NGODashboard } from "@/components/NGODashboard";
+
 export default function AdminDashboard() {
   const { userRole } = useAuth();
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function AdminDashboard() {
     return () => { u1(); u2(); u3(); u4(); };
   }, [userRole]);
 
+  if (userRole === "NGO") return <NGODashboard />;
   if (userRole !== "Admin") return null;
 
   const completedTasks = tasks.filter(t => t.status === "Verified" || t.status === "Completed").length;
