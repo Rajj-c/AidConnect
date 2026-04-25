@@ -287,11 +287,21 @@ export async function updateUserApprovalStatus(
 export function subscribeToPendingUsers(
   callback: (users: UserProfile[]) => void
 ) {
-  const q = query(usersRef(), where("approvalStatus", "==", "Pending"));
-  return onSnapshot(q, (snap) => {
-    callback(
-      snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile))
-    );
+  // We fetch all users and filter client-side to avoid requiring complex composite indexes in Firebase
+  return onSnapshot(usersRef(), (snap) => {
+    const allUsers = snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile));
+    
+    const pendingUsers = allUsers.filter(u => {
+      // Show NGOs/users explicitly marked as Pending
+      if (u.approvalStatus === "Pending") return true;
+      
+      // Show Volunteers who lack an NGO assignment
+      if (u.role === "Volunteer" && !u.ngoId) return true;
+
+      return false;
+    });
+
+    callback(pendingUsers);
   });
 }
 
