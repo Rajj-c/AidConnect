@@ -66,6 +66,7 @@ export default function LocationPickerMap({ initialLat, initialLng, flyTo, onPin
       zoom={pin || flyTo ? 16 : 12}
       className="w-full h-full rounded-xl"
       style={{ cursor: "crosshair" }}
+      attributionControl={false}
     >
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
