@@ -225,7 +225,7 @@ export default function SeedPage() {
           email: `ngo${i+1}@demo.com`,
           role: "NGO",
           displayName: ngo.name,
-          approved: false,
+          approvalStatus: "Pending",
           createdAt: serverTimestamp(),
         });
         await setDoc(doc(db!, "ngos", ngoId), {

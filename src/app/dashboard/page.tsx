@@ -171,15 +171,15 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                    <MapPin className="h-3.5 w-3.5" /> {ngo.city}, {ngo.state}
+                    <MapPin className="h-3.5 w-3.5" /> {ngo.city || ngo.address || "Location Unknown"}
                   </div>
 
                   <div className="flex flex-wrap gap-1">
-                    {ngo.focusAreas.slice(0, 2).map(f => (
+                    {(ngo.focusAreas || (ngo.category ? [ngo.category] : ["General"])).slice(0, 2).map(f => (
                       <Badge key={f} variant="secondary" className="text-[10px] bg-primary/5 text-primary border-none">{f}</Badge>
                     ))}
-                    {ngo.focusAreas.length > 2 && (
-                      <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-500">+{ngo.focusAreas.length - 2}</Badge>
+                    {(ngo.focusAreas || []).length > 2 && (
+                      <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-500">+{(ngo.focusAreas || []).length - 2}</Badge>
                     )}
                   </div>
 
