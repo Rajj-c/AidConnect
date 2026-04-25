@@ -28,6 +28,8 @@ export interface UserProfile {
   approvalStatus: "Incomplete" | "Pending" | "Approved" | "Rejected";
   rejectionCount: number;
   createdAt: Timestamp | null;
+  ngoId?: string;
+  approved?: boolean;
 }
 
 // ─── NGO ──────────────────────────────────────────────────────────────────────
@@ -625,6 +627,45 @@ export function subscribeToUnreadCount(
     where("read", "==", false)
   );
   return onSnapshot(q, (snap) => callback(snap.size));
+}
+
+// ─── Direct Messaging (NGO ↔ Volunteer) ────────────────────────────────────────
+
+export interface DirectMessage {
+  id?: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: Timestamp | null;
+}
+
+const directMessagesRef = (ngoId: string, volunteerId: string) =>
+  collection(db!, "chats", `${ngoId}_${volunteerId}`, "messages");
+
+export async function sendDirectMessage(
+  ngoId: string,
+  volunteerId: string,
+  senderId: string,
+  senderName: string,
+  text: string
+) {
+  return addDoc(directMessagesRef(ngoId, volunteerId), {
+    senderId,
+    senderName,
+    text,
+    timestamp: serverTimestamp(),
+  });
+}
+
+export function subscribeToDirectMessages(
+  ngoId: string,
+  volunteerId: string,
+  callback: (messages: DirectMessage[]) => void
+) {
+  const q = query(directMessagesRef(ngoId, volunteerId), orderBy("timestamp", "asc"));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DirectMessage)));
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

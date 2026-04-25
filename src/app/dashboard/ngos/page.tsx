@@ -146,6 +146,7 @@ export default function AdminManageUsersPage() {
             const nData = u.ngoData;
             const suggestion = suggestions[u.uid!];
             const isAILoading = loadingAI[u.uid!];
+            const userName = u.name || (u as any).displayName || "Unknown User";
 
             return (
               <Card key={u.uid} className="shadow-sm border-none bg-white flex flex-col overflow-hidden">
@@ -155,11 +156,11 @@ export default function AdminManageUsersPage() {
                 <div className="px-5 py-4 flex items-center justify-between border-b bg-slate-50/50">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-11 w-11 border-2 border-white shadow-sm">
-                      <AvatarImage src={getAvatarUrl(u.uid!, u.name, vData?.gender)} />
-                      <AvatarFallback className="text-primary font-bold">{u.name.charAt(0)}</AvatarFallback>
+                      <AvatarImage src={getAvatarUrl(u.uid!, userName, vData?.gender)} />
+                      <AvatarFallback className="text-primary font-bold">{userName.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <CardTitle className="font-headline text-base">{u.name}</CardTitle>
+                      <CardTitle className="font-headline text-base">{userName}</CardTitle>
                       <CardDescription className="text-xs uppercase tracking-wider">{u.role} · {u.email}</CardDescription>
                     </div>
                   </div>

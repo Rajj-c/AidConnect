@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { TaskChatDialog } from "@/components/TaskChatDialog";
+import { DirectChatDialog } from "@/components/DirectChatDialog";
 
 const TYPE_ICON: Record<TaskType, React.ReactNode> = {
   Collection: <Package className="h-3.5 w-3.5" />,
@@ -94,9 +95,24 @@ export default function VolunteerMissionsPage() {
   // Chat dialog
   const [chatTask, setChatTask] = useState<TaskDoc | null>(null);
 
+  // Direct Chat with NGO
+  const [ngoChatOpen, setNgoChatOpen] = useState(false);
+  const [myNgoId, setMyNgoId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!user) return;
-    return subscribeToMyTasks(user.uid, setTasks);
+    const unsub = subscribeToMyTasks(user.uid, setTasks);
+    
+    // Fetch my ngoId
+    import("firebase/firestore").then(({ doc, getDoc }) => {
+      import("@/lib/firebase").then(({ db }) => {
+        getDoc(doc(db!, "volunteers", user.uid)).then(snap => {
+          if (snap.exists()) setMyNgoId(snap.data().ngoId);
+        });
+      });
+    });
+
+    return unsub;
   }, [user]);
 
   const activeTasks = tasks.filter(t => t.status !== "Verified");
@@ -212,11 +228,19 @@ export default function VolunteerMissionsPage() {
           <h1 className="text-3xl font-bold font-headline">My Missions</h1>
           <p className="text-muted-foreground">{activeTasks.length} active · {completedCount} completed</p>
         </div>
-        <Button onClick={handleSOS} variant="destructive" size="lg"
-          className={`gap-2 font-bold ${sosActive ? "animate-pulse ring-4 ring-red-500/50" : "shadow-lg"}`}>
-          <AlertTriangle className="h-5 w-5" />
-          {sosActive ? "SOS BROADCASTED" : "EMERGENCY SOS"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {myNgoId && (
+            <Button onClick={() => setNgoChatOpen(true)} variant="outline" size="lg" className="gap-2 shadow-sm border-primary/20 text-primary">
+              <MessageCircle className="h-5 w-5" />
+              Chat with NGO
+            </Button>
+          )}
+          <Button onClick={handleSOS} variant="destructive" size="lg"
+            className={`gap-2 font-bold ${sosActive ? "animate-pulse ring-4 ring-red-500/50" : "shadow-lg"}`}>
+            <AlertTriangle className="h-5 w-5" />
+            {sosActive ? "SOS BROADCASTED" : "EMERGENCY SOS"}
+          </Button>
+        </div>
       </div>
 
       {activeTasks.length === 0 && (
@@ -458,8 +482,19 @@ export default function VolunteerMissionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Chat */}
+      {/* Chat Dialog */}
       {chatTask && <TaskChatDialog task={chatTask} open={!!chatTask} onOpenChange={open => !open && setChatTask(null)} />}
+      
+      {/* NGO Chat Dialog */}
+      {myNgoId && user && (
+        <DirectChatDialog 
+          open={ngoChatOpen}
+          onOpenChange={setNgoChatOpen}
+          ngoId={myNgoId}
+          volunteerId={user.uid}
+          recipientName="NGO Coordinator"
+        />
+      )}
     </div>
   );
 }

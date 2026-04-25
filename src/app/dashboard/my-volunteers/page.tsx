@@ -12,11 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Star, CheckCircle2, Clock, MapPin, Phone, Plus, Loader2 } from "lucide-react";
+import { Users, Star, Clock, MapPin, Phone, Plus, MessageCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { DirectChatDialog } from "@/components/DirectChatDialog";
 
 const getAvatarUrl = (gender?: string) => gender === "female" ? "/avatar-female.svg" : "/avatar-male.svg";
 
@@ -27,6 +28,7 @@ export default function MyVolunteersPage() {
   const [allTasks, setAllTasks] = useState<TaskDoc[]>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const [selectedVol, setSelectedVol] = useState<VolunteerDoc | null>(null);
+  const [chatVol, setChatVol] = useState<VolunteerDoc | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Task form
@@ -165,21 +167,43 @@ export default function MyVolunteersPage() {
                     {v.availability}
                   </div>
 
-                  {/* Assign Task Button */}
-                  <Button
-                    onClick={() => openAssign(v)}
-                    disabled={v.status !== "Available"}
-                    className="w-full gap-2 h-10"
-                    variant={v.status === "Available" ? "default" : "outline"}
-                  >
-                    <Plus className="h-4 w-4" />
-                    {v.status === "Available" ? "Assign New Task" : "Volunteer is Busy"}
-                  </Button>
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => openAssign(v)}
+                      disabled={v.status !== "Available"}
+                      className="flex-1 gap-1.5 h-9 text-xs"
+                      variant={v.status === "Available" ? "default" : "outline"}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {v.status === "Available" ? "Assign Task" : "Busy"}
+                    </Button>
+                    
+                    <Button
+                      onClick={() => setChatVol(v)}
+                      variant="outline"
+                      className="gap-1.5 h-9 text-xs border-primary/20 text-primary hover:bg-primary/5 px-3"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Message
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {/* Chat Modal */}
+      {chatVol && user && (
+        <DirectChatDialog 
+          open={!!chatVol}
+          onOpenChange={(isOpen) => !isOpen && setChatVol(null)}
+          ngoId={user.uid}
+          volunteerId={chatVol.userId!}
+          recipientName={chatVol.name}
+        />
       )}
 
       {/* Assign Task Modal */}
