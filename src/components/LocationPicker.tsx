@@ -284,7 +284,7 @@ export function LocationPicker({
 
             {/* Suggestions Dropdown */}
             {showDropdown && (suggestions.length > 0 || loadingSuggestions) && (
-              <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-white border rounded-xl shadow-xl overflow-hidden">
+              <div className="absolute left-3 right-3 top-full mt-1 z-[1000] bg-white border rounded-xl shadow-xl overflow-hidden">
                 {loadingSuggestions && suggestions.length === 0 ? (
                   <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching...
