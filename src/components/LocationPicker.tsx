@@ -41,8 +41,9 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
 }
 
 async function searchLocation(query: string): Promise<{ lat: number; lng: number; display_name: string } | null> {
+  // Add countrycodes=in to bias results toward India (also supports pincodes like 600006)
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=in`,
     { headers: { "Accept-Language": "en" } }
   );
   const results = await res.json();
@@ -212,7 +213,7 @@ export function LocationPicker({ label = "Location", placeholder = "e.g. Anna Na
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAreaSearch()}
-              placeholder="Type area name to zoom in (e.g. Anna Nagar)"
+              placeholder="Area name or pincode (e.g. Anna Nagar or 641001)"
               className="text-sm h-8"
             />
             <Button
