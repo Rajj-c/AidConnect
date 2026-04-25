@@ -14,16 +14,18 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 const ADMIN_ROUTES = [
-  "/dashboard", "/dashboard/ngos", "/dashboard/dispatch",
+  "/dashboard", "/dashboard/ngos", "/dashboard/analytics",
   "/dashboard/settings", "/seed", "/dashboard/admin"
 ];
 const NGO_ROUTES = [
-  "/dashboard", "/dashboard/dispatch", "/dashboard/heatmap",
-  "/dashboard/reports", "/dashboard/needs", "/dashboard/volunteers",
-  "/dashboard/analytics", "/dashboard/impact", "/dashboard/settings",
+  "/dashboard", "/dashboard/tasks", "/dashboard/heatmap",
+  "/dashboard/analytics", "/dashboard/settings",
   "/dashboard/my-volunteers",
 ];
-const VOLUNTEER_ROUTES = ["/dashboard/missions", "/dashboard/settings"];
+const VOLUNTEER_ROUTES = [
+  "/dashboard/missions", "/dashboard/available-tasks",
+  "/dashboard/heatmap", "/dashboard/settings"
+];
 
 function isAllowed(role: string | null, pathname: string): boolean {
   if (!role) return false;

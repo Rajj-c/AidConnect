@@ -14,10 +14,11 @@ import {
   Timestamp,
   onSnapshot,
   where,
-  increment
+  increment,
+  collectionGroup,
 } from "firebase/firestore";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── User ──────────────────────────────────────────────────────────────────────
 
 export interface UserProfile {
   uid?: string;
@@ -28,6 +29,197 @@ export interface UserProfile {
   rejectionCount: number;
   createdAt: Timestamp | null;
 }
+
+// ─── NGO ──────────────────────────────────────────────────────────────────────
+
+export interface NGOProfile {
+  uid: string;
+  orgName: string;
+  orgType: "Trust" | "Society" | "Section8" | "INGO" | "Government" | "Other";
+  yearEstablished: string;
+  missionStatement: string;
+  registrationNumber: string;
+  panNumber: string;
+  ngo12AStatus: boolean;
+  ngo80GStatus: boolean;
+  fcraRegistered: boolean;
+  ngoDarpanId: string;
+  officialAddress: string;
+  city: string;
+  state: string;
+  pinCode: string;
+  phone: string;
+  website: string;
+  focusAreas: string[];
+  geographicScope: "Local" | "State" | "National" | "International";
+  operationalStates: string[];
+  activeVolunteers: string;
+  annualBudgetRange: string;
+  providesAccommodation: boolean;
+  hasVehicles: boolean;
+  hasMedicalFacilities: boolean;
+  languagesSupported: string[];
+  createdAt?: Timestamp | null;
+}
+
+// ─── Volunteer ────────────────────────────────────────────────────────────────
+
+export interface VolunteerDoc {
+  id?: string;
+  userId: string;
+  name: string;
+  role: string;
+  gender?: "male" | "female" | "other";
+  skills: string[];
+  languages?: string[];
+  phone?: string;
+  location: string;
+  availability: string;
+  bio?: string;
+  status: "Available" | "Busy";
+  tasksCompleted: number;
+  rating: number;
+  distance?: string;
+  lat?: number;
+  lng?: number;
+  // Set by Admin
+  ngoId?: string;
+  ngoName?: string;
+  assignedAt?: Timestamp | null;
+}
+
+// ─── Task ─────────────────────────────────────────────────────────────────────
+
+export type TaskType = "Collection" | "Distribution" | "Service";
+
+export type TaskStatus =
+  | "Open"
+  | "Assigned"
+  | "In Progress"
+  | "Completed"
+  | "Verified";
+
+export interface TaskDoc {
+  id?: string;
+  ngoId: string;
+  ngoName: string;
+  title: string;
+  description: string;
+  taskType: TaskType;
+  category: "Food" | "Health" | "Education" | "Shelter" | "Water" | "Other";
+  skillsRequired: string[];
+  location: string;
+  lat?: number;
+  lng?: number;
+  priority: "High" | "Medium" | "Low";
+  deadline?: Timestamp | null;
+  status: TaskStatus;
+  // Volunteer assignment
+  assignedVolunteerId?: string;
+  assignedVolunteerName?: string;
+  // Auto-computed from field entries
+  fieldSummary?: {
+    totalEntries: number;
+    totalItems: number;
+    totalBeneficiaries: number;
+    lastUpdated: Timestamp | null;
+  };
+  // Final proof (on completion)
+  feedback?: {
+    rating: number;
+    success: boolean;
+    note: string;
+    imageUrl?: string;
+  };
+  createdAt: Timestamp | null;
+  completedAt?: Timestamp | null;
+}
+
+// ─── Field Entries (subcollection under tasks) ────────────────────────────────
+
+export type ItemType = "Clothes" | "Food" | "Medicine" | "Books" | "Other";
+export type ServiceType =
+  | "Medical Consultation"
+  | "Teaching Session"
+  | "Counselling"
+  | "Skills Training"
+  | "Other";
+
+/** Collection task entry — one per donor */
+export interface CollectionEntry {
+  id?: string;
+  entryType: "Collection";
+  donorName: string;
+  donorPhone?: string;
+  donorAddress?: string;
+  itemType: ItemType;
+  quantity: number;
+  beneficiaryCount: number;
+  condition?: "Good" | "Fair";
+  notes?: string;
+  photo?: string;
+  loggedBy: string;
+  loggedByName: string;
+  loggedAt: Timestamp | null;
+}
+
+/** Distribution task entry — one per recipient/batch */
+export interface DistributionEntry {
+  id?: string;
+  entryType: "Distribution";
+  recipientName: string;
+  recipientArea?: string;
+  itemType: ItemType;
+  quantityGiven: number;
+  beneficiaryCount: number;
+  notes?: string;
+  photo?: string;
+  loggedBy: string;
+  loggedByName: string;
+  loggedAt: Timestamp | null;
+}
+
+/** Service task entry — one per session/venue */
+export interface ServiceEntry {
+  id?: string;
+  entryType: "Service";
+  venue: string;
+  serviceType: ServiceType;
+  peopleServedCount: number;
+  durationMinutes?: number;
+  notes?: string;
+  photo?: string;
+  loggedBy: string;
+  loggedByName: string;
+  loggedAt: Timestamp | null;
+}
+
+export type FieldEntry = CollectionEntry | DistributionEntry | ServiceEntry;
+
+// ─── Messaging (subcollection under tasks) ────────────────────────────────────
+
+export interface TaskMessage {
+  id?: string;
+  senderId: string;
+  senderName: string;
+  senderRole: "NGO" | "Volunteer" | "Admin";
+  text: string;
+  timestamp: Timestamp | null;
+  read: boolean;
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export interface NotificationDoc {
+  id?: string;
+  title: string;
+  description: string;
+  type: "alert" | "success" | "info";
+  read: boolean;
+  createdAt: Timestamp | null;
+}
+
+// ─── Legacy (kept for backward compat with older pages) ──────────────────────
 
 export interface NeedDoc {
   id?: string;
@@ -44,103 +236,36 @@ export interface NeedDoc {
   createdBy: string;
 }
 
-export interface TaskDoc {
-  id?: string;
-  needId: string;
-  title: string;
-  assignedVolunteerId: string;
-  assignedVolunteerName: string;
-  status: "Pending" | "Acknowledged" | "En Route" | "On Site" | "In Progress" | "Completed" | "Verified" | "Failed";
-  priority: "High" | "Medium" | "Low";
-  location: string;
-  lat?: number;
-  lng?: number;
-  progress: number;
-  eta?: string;
-  createdAt: Timestamp | null;
-  completedAt?: Timestamp | null;
-  feedback?: {
-    rating: number;
-    success: boolean;
-    note: string;
-    imageUrl?: string;
-  };
-  ngoId?: string; // which NGO owns this task
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Collection helpers
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export interface VolunteerDoc {
-  id?: string;
-  userId: string;
-  name: string;
-  role: string;
-  gender?: "male" | "female" | "other";
-  skills: string[];
-  languages?: string[];
-  phone?: string;
-  location: string;
-  availability: string;
-  status: "Available" | "Busy";
-  tasksCompleted: number;
-  rating: number;
-  distance?: string;
-  lat?: number;
-  lng?: number;
-  // NGO Assignment
-  ngoId?: string;
-  ngoName?: string;
-  assignedAt?: Timestamp | null;
-}
+const usersRef = () => collection(db!, "users");
+const ngosRef = () => collection(db!, "ngos");
+const volunteersRef = () => collection(db!, "volunteers");
+const tasksRef = () => collection(db!, "tasks");
+const needsRef = () => collection(db!, "needs");
+const notificationsRef = () => collection(db!, "notifications");
+const fieldEntriesRef = (taskId: string) =>
+  collection(db!, "tasks", taskId, "fieldEntries");
+const messagesRef = (taskId: string) =>
+  collection(db!, "tasks", taskId, "messages");
 
-export interface NotificationDoc {
-  id?: string;
-  title: string;
-  description: string;
-  type: "alert" | "success" | "info";
-  read: boolean;
-  createdAt: Timestamp | null;
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Users
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export interface NGOProfile {
-  uid: string;
-  // Identity
-  orgName: string;
-  orgType: "Trust" | "Society" | "Section8" | "INGO" | "Government" | "Other";
-  yearEstablished: string;
-  missionStatement: string;
-  // Legal & Compliance (India)
-  registrationNumber: string;
-  panNumber: string;
-  ngo12AStatus: boolean;
-  ngo80GStatus: boolean;
-  fcraRegistered: boolean;
-  ngoDarpanId: string;
-  // Contact & Location
-  officialAddress: string;
-  city: string;
-  state: string;
-  pinCode: string;
-  phone: string;
-  website: string;
-  // Operational Details
-  focusAreas: string[];
-  geographicScope: "Local" | "State" | "National" | "International";
-  operationalStates: string[];
-  activeVolunteers: string;
-  annualBudgetRange: string;
-  // Capacity
-  providesAccommodation: boolean;
-  hasVehicles: boolean;
-  hasMedicalFacilities: boolean;
-  languagesSupported: string[];
-  createdAt?: Timestamp | null;
-}
+export const usersCollection = usersRef;
 
-// ─── Users ───────────────────────────────────────────────────────────────────
-
-export const usersCollection = () => collection(db!, "users");
-
-export async function createUserProfile(uid: string, profile: Omit<UserProfile, "uid" | "createdAt">) {
-  return setDoc(doc(db!, "users", uid), { ...profile, uid, createdAt: serverTimestamp() });
+export async function createUserProfile(
+  uid: string,
+  profile: Omit<UserProfile, "uid" | "createdAt">
+) {
+  return setDoc(doc(db!, "users", uid), {
+    ...profile,
+    uid,
+    createdAt: serverTimestamp(),
+  });
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -149,79 +274,70 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   return snap.data() as UserProfile;
 }
 
-export async function updateUserApprovalStatus(uid: string, status: UserProfile["approvalStatus"], incrementRejection = false) {
-  const updates: any = { approvalStatus: status };
-  if (incrementRejection) {
-    updates.rejectionCount = increment(1);
-  }
+export async function updateUserApprovalStatus(
+  uid: string,
+  status: UserProfile["approvalStatus"],
+  incrementRejection = false
+) {
+  const updates: Record<string, unknown> = { approvalStatus: status };
+  if (incrementRejection) updates.rejectionCount = increment(1);
   return updateDoc(doc(db!, "users", uid), updates);
 }
 
-export function subscribeToPendingUsers(callback: (users: UserProfile[]) => void) {
-  const q = query(usersCollection(), where("approvalStatus", "==", "Pending"));
+export function subscribeToPendingUsers(
+  callback: (users: UserProfile[]) => void
+) {
+  const q = query(usersRef(), where("approvalStatus", "==", "Pending"));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile)));
+    callback(
+      snap.docs.map((d) => ({ uid: d.id, ...d.data() } as UserProfile))
+    );
   });
 }
 
-// ─── Needs ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// NGOs
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export const needsCollection = () => collection(db!, "needs");
-
-export async function addNeed(need: Omit<NeedDoc, "id" | "createdAt">) {
-  return addDoc(needsCollection(), { ...need, createdAt: serverTimestamp() });
-}
-
-export function subscribeToNeeds(callback: (needs: NeedDoc[]) => void, maxCount = 50) {
-  const q = query(needsCollection(), orderBy("createdAt", "desc"), limit(maxCount));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedDoc)));
+export async function createNGOProfile(
+  uid: string,
+  data: Omit<NGOProfile, "uid" | "createdAt">
+) {
+  await setDoc(doc(db!, "ngos", uid), {
+    ...data,
+    uid,
+    createdAt: serverTimestamp(),
   });
 }
 
-// ─── Tasks ───────────────────────────────────────────────────────────────────
-
-export const tasksCollection = () => collection(db!, "tasks");
-
-export async function addTask(task: Omit<TaskDoc, "id" | "createdAt">) {
-  return addDoc(tasksCollection(), { ...task, createdAt: serverTimestamp() });
-}
-
-export function subscribeToTasks(callback: (tasks: TaskDoc[]) => void, maxCount = 50) {
-  const q = query(tasksCollection(), orderBy("createdAt", "desc"), limit(maxCount));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+export function subscribeToApprovedNGOs(
+  callback: (ngos: NGOProfile[]) => void
+) {
+  return onSnapshot(ngosRef(), (snap) => {
+    callback(snap.docs.map((d) => ({ ...d.data() } as NGOProfile)));
   });
 }
 
-export async function updateTaskStatus(taskId: string, status: TaskDoc["status"]) {
-  return updateDoc(doc(db!, "tasks", taskId), { status });
+export async function getNGOProfile(uid: string): Promise<NGOProfile | null> {
+  const snap = await getDoc(doc(db!, "ngos", uid));
+  if (!snap.exists()) return null;
+  return snap.data() as NGOProfile;
 }
 
-export async function submitTaskFeedback(taskId: string, feedback: TaskDoc["feedback"]) {
-  return updateDoc(doc(db!, "tasks", taskId), {
-    feedback,
-    status: feedback?.success ? "Completed" : "Failed",
-    completedAt: serverTimestamp(),
-  });
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Volunteers
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export async function verifyTask(taskId: string, volunteerId: string) {
-  await updateDoc(doc(db!, "tasks", taskId), { status: "Verified" });
-  const volRef = doc(db!, "volunteers", volunteerId);
-  const volSnap = await getDoc(volRef);
-  if (volSnap.exists()) {
-    await updateDoc(volRef, { tasksCompleted: increment(1) });
-  }
-}
+export const volunteersCollection = volunteersRef;
 
-// ─── Volunteers ──────────────────────────────────────────────────────────────
-
-export const volunteersCollection = () => collection(db!, "volunteers");
-
-export async function createVolunteerProfile(uid: string, data: Omit<VolunteerDoc, "id" | "userId" | "tasksCompleted" | "rating" | "status" | "role">) {
-  const volunteerRef = doc(db!, "volunteers", uid);
-  await setDoc(volunteerRef, {
+export async function createVolunteerProfile(
+  uid: string,
+  data: Omit<
+    VolunteerDoc,
+    "id" | "userId" | "tasksCompleted" | "rating" | "status" | "role"
+  >
+) {
+  await setDoc(doc(db!, "volunteers", uid), {
     ...data,
     userId: uid,
     role: "General Support",
@@ -231,25 +347,38 @@ export async function createVolunteerProfile(uid: string, data: Omit<VolunteerDo
   });
 }
 
-export async function createNGOProfile(uid: string, data: Omit<NGOProfile, "uid" | "createdAt">) {
-  await setDoc(doc(db!, "ngos", uid), { ...data, uid, createdAt: serverTimestamp() });
-}
-
-export function subscribeToVolunteers(callback: (volunteers: VolunteerDoc[]) => void, maxCount = 50) {
-  const q = query(volunteersCollection(), orderBy("rating", "desc"), limit(maxCount));
+/** All volunteers (Admin use) */
+export function subscribeToVolunteers(
+  callback: (volunteers: VolunteerDoc[]) => void,
+  maxCount = 100
+) {
+  const q = query(volunteersRef(), orderBy("rating", "desc"), limit(maxCount));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc)));
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc))
+    );
   });
 }
 
-export function subscribeToVolunteersByNGO(ngoId: string, callback: (volunteers: VolunteerDoc[]) => void) {
-  const q = query(volunteersCollection(), where("ngoId", "==", ngoId));
+/** Volunteers belonging to a specific NGO */
+export function subscribeToVolunteersByNGO(
+  ngoId: string,
+  callback: (volunteers: VolunteerDoc[]) => void
+) {
+  const q = query(volunteersRef(), where("ngoId", "==", ngoId));
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc)));
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...d.data() } as VolunteerDoc))
+    );
   });
 }
 
-export async function assignVolunteerToNGO(volunteerId: string, ngoId: string, ngoName: string) {
+/** Admin assigns a volunteer to an NGO */
+export async function assignVolunteerToNGO(
+  volunteerId: string,
+  ngoId: string,
+  ngoName: string
+) {
   await updateDoc(doc(db!, "volunteers", volunteerId), {
     ngoId,
     ngoName,
@@ -257,28 +386,256 @@ export async function assignVolunteerToNGO(volunteerId: string, ngoId: string, n
   });
 }
 
-export function subscribeToApprovedNGOs(callback: (ngos: NGOProfile[]) => void) {
-  const q = collection(db!, "ngos");
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ ...d.data() } as NGOProfile)));
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tasks
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const tasksCollection = tasksRef;
+
+/** Create a new task (NGO) */
+export async function createTask(
+  task: Omit<TaskDoc, "id" | "createdAt" | "fieldSummary">
+) {
+  return addDoc(tasksRef(), {
+    ...task,
+    createdAt: serverTimestamp(),
+    fieldSummary: {
+      totalEntries: 0,
+      totalItems: 0,
+      totalBeneficiaries: 0,
+      lastUpdated: null,
+    },
   });
 }
 
-export function subscribeToTasksByNGO(ngoId: string, callback: (tasks: TaskDoc[]) => void) {
-  const q = query(tasksCollection(), where("ngoId", "==", ngoId), orderBy("createdAt", "desc"));
+/** All tasks for a specific NGO */
+export function subscribeToTasksByNGO(
+  ngoId: string,
+  callback: (tasks: TaskDoc[]) => void
+) {
+  const q = query(
+    tasksRef(),
+    where("ngoId", "==", ngoId),
+    orderBy("createdAt", "desc")
+  );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
   });
 }
 
-// ─── Notifications ────────────────────────────────────────────────────────────
-
-export const notificationsCollection = () => collection(db!, "notifications");
-
-export function subscribeToNotifications(callback: (notifs: NotificationDoc[]) => void, maxCount = 20) {
-  const q = query(notificationsCollection(), orderBy("createdAt", "desc"), limit(maxCount));
+/** Open tasks for a specific NGO (for volunteer to browse & self-assign) */
+export function subscribeToOpenTasksByNGO(
+  ngoId: string,
+  callback: (tasks: TaskDoc[]) => void
+) {
+  const q = query(
+    tasksRef(),
+    where("ngoId", "==", ngoId),
+    where("status", "==", "Open"),
+    orderBy("createdAt", "desc")
+  );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NotificationDoc)));
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+  });
+}
+
+/** Tasks assigned to a specific volunteer (volunteer's missions) */
+export function subscribeToMyTasks(
+  volunteerId: string,
+  callback: (tasks: TaskDoc[]) => void
+) {
+  const q = query(
+    tasksRef(),
+    where("assignedVolunteerId", "==", volunteerId),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+  });
+}
+
+/** All tasks globally (Admin use) */
+export function subscribeToTasks(
+  callback: (tasks: TaskDoc[]) => void,
+  maxCount = 100
+) {
+  const q = query(tasksRef(), orderBy("createdAt", "desc"), limit(maxCount));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+  });
+}
+
+/** Volunteer self-assigns an open task */
+export async function selfAssignTask(
+  taskId: string,
+  volunteerId: string,
+  volunteerName: string
+) {
+  await updateDoc(doc(db!, "tasks", taskId), {
+    status: "Assigned",
+    assignedVolunteerId: volunteerId,
+    assignedVolunteerName: volunteerName,
+  });
+  // Mark volunteer as Busy
+  await updateDoc(doc(db!, "volunteers", volunteerId), { status: "Busy" });
+}
+
+/** NGO directly assigns a task to a volunteer */
+export async function assignTaskToVolunteer(
+  taskId: string,
+  volunteerId: string,
+  volunteerName: string
+) {
+  await updateDoc(doc(db!, "tasks", taskId), {
+    status: "Assigned",
+    assignedVolunteerId: volunteerId,
+    assignedVolunteerName: volunteerName,
+  });
+  await updateDoc(doc(db!, "volunteers", volunteerId), { status: "Busy" });
+}
+
+/** Update task status */
+export async function updateTaskStatus(
+  taskId: string,
+  status: TaskDoc["status"]
+) {
+  return updateDoc(doc(db!, "tasks", taskId), { status });
+}
+
+/** Volunteer submits final proof & marks completed */
+export async function submitTaskFeedback(
+  taskId: string,
+  feedback: TaskDoc["feedback"]
+) {
+  return updateDoc(doc(db!, "tasks", taskId), {
+    feedback,
+    status: feedback?.success ? "Completed" : "In Progress",
+    completedAt: serverTimestamp(),
+  });
+}
+
+/** NGO verifies a completed task */
+export async function verifyTask(taskId: string, volunteerId: string) {
+  await updateDoc(doc(db!, "tasks", taskId), { status: "Verified" });
+  const volRef = doc(db!, "volunteers", volunteerId);
+  const volSnap = await getDoc(volRef);
+  if (volSnap.exists()) {
+    await updateDoc(volRef, {
+      tasksCompleted: increment(1),
+      status: "Available", // Free up the volunteer
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Field Entries (subcollection: tasks/{taskId}/fieldEntries)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Add a field entry and update the task's fieldSummary */
+export async function addFieldEntry(taskId: string, entry: Omit<FieldEntry, "id">) {
+  // Add the entry document
+  await addDoc(fieldEntriesRef(taskId), {
+    ...entry,
+    loggedAt: serverTimestamp(),
+  });
+
+  // Update the task's summary counts
+  const summaryUpdate: Record<string, unknown> = {
+    "fieldSummary.totalEntries": increment(1),
+    "fieldSummary.lastUpdated": serverTimestamp(),
+  };
+
+  if (entry.entryType === "Collection") {
+    const col = entry as CollectionEntry;
+    summaryUpdate["fieldSummary.totalItems"] = increment(col.quantity);
+    summaryUpdate["fieldSummary.totalBeneficiaries"] = increment(col.beneficiaryCount);
+  } else if (entry.entryType === "Distribution") {
+    const dis = entry as DistributionEntry;
+    summaryUpdate["fieldSummary.totalItems"] = increment(dis.quantityGiven);
+    summaryUpdate["fieldSummary.totalBeneficiaries"] = increment(dis.beneficiaryCount);
+  } else if (entry.entryType === "Service") {
+    const svc = entry as ServiceEntry;
+    summaryUpdate["fieldSummary.totalBeneficiaries"] = increment(svc.peopleServedCount);
+  }
+
+  await updateDoc(doc(db!, "tasks", taskId), summaryUpdate);
+}
+
+/** Subscribe to all field entries for a task */
+export function subscribeToFieldEntries(
+  taskId: string,
+  callback: (entries: FieldEntry[]) => void
+) {
+  const q = query(fieldEntriesRef(taskId), orderBy("loggedAt", "asc"));
+  return onSnapshot(q, (snap) => {
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...d.data() } as FieldEntry))
+    );
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Messaging (subcollection: tasks/{taskId}/messages)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Send a message in a task thread */
+export async function sendTaskMessage(
+  taskId: string,
+  message: Omit<TaskMessage, "id" | "timestamp">
+) {
+  return addDoc(messagesRef(taskId), {
+    ...message,
+    timestamp: serverTimestamp(),
+    read: false,
+  });
+}
+
+/** Subscribe to real-time messages for a task */
+export function subscribeToTaskMessages(
+  taskId: string,
+  callback: (messages: TaskMessage[]) => void
+) {
+  const q = query(messagesRef(taskId), orderBy("timestamp", "asc"));
+  return onSnapshot(q, (snap) => {
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskMessage))
+    );
+  });
+}
+
+/** Count unread messages for a given task (from the other party's perspective) */
+export function subscribeToUnreadCount(
+  taskId: string,
+  currentUserId: string,
+  callback: (count: number) => void
+) {
+  const q = query(
+    messagesRef(taskId),
+    where("senderId", "!=", currentUserId),
+    where("read", "==", false)
+  );
+  return onSnapshot(q, (snap) => callback(snap.size));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Notifications
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const notificationsCollection = notificationsRef;
+
+export function subscribeToNotifications(
+  callback: (notifs: NotificationDoc[]) => void,
+  maxCount = 20
+) {
+  const q = query(
+    notificationsRef(),
+    orderBy("createdAt", "desc"),
+    limit(maxCount)
+  );
+  return onSnapshot(q, (snap) => {
+    callback(
+      snap.docs.map((d) => ({ id: d.id, ...d.data() } as NotificationDoc))
+    );
   });
 }
 
@@ -286,6 +643,31 @@ export async function markNotificationRead(notifId: string) {
   return updateDoc(doc(db!, "notifications", notifId), { read: true });
 }
 
-export async function addNotification(notif: Omit<NotificationDoc, "id" | "createdAt">) {
-  return addDoc(notificationsCollection(), { ...notif, createdAt: serverTimestamp() });
+export async function addNotification(
+  notif: Omit<NotificationDoc, "id" | "createdAt">
+) {
+  return addDoc(notificationsRef(), {
+    ...notif,
+    createdAt: serverTimestamp(),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Needs (legacy — keep for backward compat)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const needsCollection = needsRef;
+
+export async function addNeed(need: Omit<NeedDoc, "id" | "createdAt">) {
+  return addDoc(needsRef(), { ...need, createdAt: serverTimestamp() });
+}
+
+export function subscribeToNeeds(
+  callback: (needs: NeedDoc[]) => void,
+  maxCount = 50
+) {
+  const q = query(needsRef(), orderBy("createdAt", "desc"), limit(maxCount));
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedDoc)));
+  });
 }

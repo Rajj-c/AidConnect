@@ -10,31 +10,31 @@ import { Button } from "@/components/ui/button";
 import { Zap, X } from "lucide-react";
 import {
   LayoutDashboard, FileText, Target, Users, BarChart3,
-  Settings, TrendingUp, Building2, DatabaseZap, ShieldAlert, Flame, ScanLine
+  Settings, TrendingUp, Building2, DatabaseZap, ShieldAlert, Flame, ScanLine,
+  ClipboardList, Plus, Search
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const adminNavItems = [
-  { href: "/dashboard", label: "System Health", icon: LayoutDashboard, tooltip: "Metrics" },
-  { href: "/dashboard/ngos", label: "Verifications", icon: ShieldAlert, tooltip: "Pending Approvals" },
-  { href: "/dashboard/dispatch", label: "AI Dispatch", icon: Target, tooltip: "Command Centre" },
+  { href: "/dashboard", label: "Command Centre", icon: LayoutDashboard, tooltip: "Platform Overview" },
+  { href: "/dashboard/ngos", label: "Verifications", icon: ShieldAlert, tooltip: "Approve NGOs & Volunteers" },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3, tooltip: "Platform Analytics" },
   { href: "/seed", label: "Seed Demo Data", icon: DatabaseZap, tooltip: "Inject Demo DB Records" },
 ];
 
 const ngoNavItems = [
-  { href: "/dashboard", label: "Operations Map", icon: LayoutDashboard, tooltip: "Dashboard" },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, tooltip: "Operations Overview" },
+  { href: "/dashboard/tasks", label: "Tasks", icon: ClipboardList, tooltip: "Manage Tasks" },
+  { href: "/dashboard/tasks/new", label: "Post Task", icon: Plus, tooltip: "Create New Task" },
   { href: "/dashboard/my-volunteers", label: "My Volunteers", icon: Users, tooltip: "Your Team" },
-  { href: "/dashboard/dispatch", label: "AI Dispatch", icon: ShieldAlert, tooltip: "Command Centre" },
-  { href: "/dashboard/heatmap", label: "Urgency Heatmap", icon: Flame, tooltip: "Live Heat Map" },
-  { href: "/dashboard/reports", label: "Field Scanner", icon: ScanLine, tooltip: "OCR AI Scanner" },
-  { href: "/dashboard/needs", label: "Prioritized Needs", icon: Target, tooltip: "Target Tasks" },
-  { href: "/dashboard/volunteers", label: "Volunteer Hub", icon: Users, tooltip: "Dispatch" },
-  { href: "/dashboard/analytics", label: "Impact Analytics", icon: BarChart3, tooltip: "Analytics" },
-  { href: "/dashboard/impact", label: "Impact Metrics", icon: TrendingUp, tooltip: "Metrics" },
+  { href: "/dashboard/heatmap", label: "Urgency Heatmap", icon: Flame, tooltip: "Live Heatmap" },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3, tooltip: "Impact Analytics" },
 ];
 
 const volunteerNavItems = [
-  { href: "/dashboard/missions", label: "My Missions", icon: Target, tooltip: "Active Field Operations" },
+  { href: "/dashboard/missions", label: "My Missions", icon: Target, tooltip: "Active Tasks" },
+  { href: "/dashboard/available-tasks", label: "Available Tasks", icon: Search, tooltip: "Browse Open Tasks" },
+  { href: "/dashboard/heatmap", label: "Heatmap", icon: Flame, tooltip: "Urgency Heatmap" },
 ];
 
 export function DashboardNav() {
