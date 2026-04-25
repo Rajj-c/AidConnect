@@ -671,3 +671,9 @@ export function subscribeToNeeds(
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedDoc)));
   });
 }
+
+/** @deprecated Use createTask() instead. Kept for legacy pages. */
+export async function addTask(task: Omit<TaskDoc, "id" | "createdAt" | "fieldSummary">) {
+  return createTask(task);
+}
+
