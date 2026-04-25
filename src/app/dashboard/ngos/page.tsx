@@ -164,7 +164,7 @@ export default function AdminManageUsersPage() {
                       <CardDescription className="text-xs uppercase tracking-wider">{u.role} · {u.email}</CardDescription>
                     </div>
                   </div>
-                  {u.rejectionCount > 0 ? (
+                  {(u.rejectionCount ?? 0) > 0 ? (
                     <Badge className="bg-red-100 text-red-800 border-none text-[10px]">
                       <RefreshCcw className="h-3 w-3 mr-1" /> Re-applied ({u.rejectionCount})
                     </Badge>
@@ -250,22 +250,22 @@ export default function AdminManageUsersPage() {
                   {nData && (
                     <>
                       <div className="bg-primary/5 p-3 rounded-lg border border-primary/10">
-                        <p className="text-xs font-bold text-primary uppercase">{nData.orgType} · Est. {nData.yearEstablished}</p>
-                        <p className="text-sm text-slate-700 italic mt-1 line-clamp-2">"{nData.missionStatement}"</p>
+                        <p className="text-xs font-bold text-primary uppercase">{nData.orgType || "NGO"} · Est. {nData.yearEstablished || "N/A"}</p>
+                        <p className="text-sm text-slate-700 italic mt-1 line-clamp-2">"{nData.missionStatement || "No mission statement provided."}"</p>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
-                        <div className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" />{nData.city}, {nData.state}</div>
-                        <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" />{nData.phone}</div>
-                        <div className="col-span-2 text-xs text-muted-foreground">Reg: {nData.registrationNumber} · PAN: {nData.panNumber}</div>
+                        <div className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" />{nData.city || ""}{nData.state ? `, ${nData.state}` : ""}</div>
+                        <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" />{nData.phone || "N/A"}</div>
+                        <div className="col-span-2 text-xs text-muted-foreground">Reg: {nData.registrationNumber || "N/A"} · PAN: {nData.panNumber || "N/A"}</div>
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
                         {nData.ngo12AStatus && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">12A</Badge>}
                         {nData.ngo80GStatus && <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">80G</Badge>}
                         {nData.fcraRegistered && <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">FCRA</Badge>}
                       </div>
-                      {nData.focusAreas.length > 0 && (
+                      {(nData.focusAreas ?? []).length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {nData.focusAreas.map(f => <Badge key={f} variant="outline" className="text-[10px] bg-white">{f}</Badge>)}
+                          {(nData.focusAreas ?? []).map(f => <Badge key={f} variant="outline" className="text-[10px] bg-white">{f}</Badge>)}
                         </div>
                       )}
                     </>
