@@ -427,11 +427,16 @@ export function subscribeToTasksByNGO(
 ) {
   const q = query(
     tasksRef(),
-    where("ngoId", "==", ngoId),
-    orderBy("createdAt", "desc")
+    where("ngoId", "==", ngoId)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc));
+    data.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
+      return timeB - timeA;
+    });
+    callback(data);
   });
 }
 
@@ -443,11 +448,16 @@ export function subscribeToOpenTasksByNGO(
   const q = query(
     tasksRef(),
     where("ngoId", "==", ngoId),
-    where("status", "==", "Open"),
-    orderBy("createdAt", "desc")
+    where("status", "==", "Open")
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc)));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc));
+    data.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
+      return timeB - timeA;
+    });
+    callback(data);
   });
 }
 
@@ -801,11 +811,16 @@ export function subscribeToDonationLeads(
 ) {
   const q = query(
     donationLeadsRef(),
-    where("ngoId", "==", ngoId),
-    orderBy("createdAt", "desc")
+    where("ngoId", "==", ngoId)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DonationLead)));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as DonationLead));
+    data.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
+      return timeB - timeA;
+    });
+    callback(data);
   });
 }
 
@@ -816,11 +831,16 @@ export function subscribeToNeedReports(
 ) {
   const q = query(
     needReportsRef(),
-    where("ngoId", "==", ngoId),
-    orderBy("createdAt", "desc")
+    where("ngoId", "==", ngoId)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedReport)));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedReport));
+    data.sort((a, b) => {
+      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
+      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
+      return timeB - timeA;
+    });
+    callback(data);
   });
 }
 
