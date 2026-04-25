@@ -677,3 +677,152 @@ export async function addTask(task: Omit<TaskDoc, "id" | "createdAt" | "fieldSum
   return createTask(task);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Community Intelligence — Donation Leads & Need Reports
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type LeadStatus = "New" | "Reviewed" | "TaskCreated" | "Rejected";
+
+/** A volunteer reports that someone in the community wants to donate */
+export interface DonationLead {
+  id?: string;
+  ngoId: string;
+  reportedBy: string;
+  reportedByName: string;
+  donorName: string;
+  donorPhone?: string;
+  donorAddress: string;
+  itemType: "Clothes" | "Food" | "Medicine" | "Books" | "Other";
+  estimatedQuantity: string;
+  availability: string; // "anytime" | "weekends" | specific date
+  notes?: string;
+  status: LeadStatus;
+  createdAt: Timestamp | null;
+}
+
+/** A volunteer reports that someone in the community is in need */
+export interface NeedReport {
+  id?: string;
+  ngoId: string;
+  reportedBy: string;
+  reportedByName: string;
+  contactName: string;
+  contactPhone?: string;
+  address: string;
+  category: "Food" | "Health" | "Education" | "Shelter" | "Water" | "Other";
+  description: string;
+  urgency: "High" | "Medium" | "Low";
+  numberOfPeople: number;
+  notes?: string;
+  status: LeadStatus;
+  createdAt: Timestamp | null;
+}
+
+const donationLeadsRef = () => collection(db!, "donationLeads");
+const needReportsRef = () => collection(db!, "needReports");
+
+/** Volunteer submits a donation lead */
+export async function createDonationLead(
+  lead: Omit<DonationLead, "id" | "createdAt" | "status">
+) {
+  return addDoc(donationLeadsRef(), {
+    ...lead,
+    status: "New",
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** Volunteer submits a need report */
+export async function createNeedReport(
+  report: Omit<NeedReport, "id" | "createdAt" | "status">
+) {
+  return addDoc(needReportsRef(), {
+    ...report,
+    status: "New",
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** NGO subscribes to all donation leads for their org */
+export function subscribeToDonationLeads(
+  ngoId: string,
+  callback: (leads: DonationLead[]) => void
+) {
+  const q = query(
+    donationLeadsRef(),
+    where("ngoId", "==", ngoId),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as DonationLead)));
+  });
+}
+
+/** NGO subscribes to all need reports for their org */
+export function subscribeToNeedReports(
+  ngoId: string,
+  callback: (reports: NeedReport[]) => void
+) {
+  const q = query(
+    needReportsRef(),
+    where("ngoId", "==", ngoId),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as NeedReport)));
+  });
+}
+
+/** Update status of a donation lead */
+export async function updateDonationLeadStatus(id: string, status: LeadStatus) {
+  return updateDoc(doc(db!, "donationLeads", id), { status });
+}
+
+/** Update status of a need report */
+export async function updateNeedReportStatus(id: string, status: LeadStatus) {
+  return updateDoc(doc(db!, "needReports", id), { status });
+}
+
+/** NGO converts a donation lead into a collection task */
+export async function convertDonationLeadToTask(
+  lead: DonationLead,
+  ngoName: string
+) {
+  const taskRef = await createTask({
+    ngoId: lead.ngoId,
+    ngoName,
+    title: `Collect ${lead.itemType} from ${lead.donorName}`,
+    description: `Donor: ${lead.donorName}${lead.donorPhone ? ` (${lead.donorPhone})` : ""}. Estimated qty: ${lead.estimatedQuantity}. Available: ${lead.availability}.${lead.notes ? ` Note: ${lead.notes}` : ""}`,
+    taskType: "Collection",
+    category: lead.itemType === "Medicine" ? "Health" : lead.itemType === "Books" ? "Education" : lead.itemType === "Clothes" ? "Shelter" : "Food",
+    skillsRequired: [],
+    location: lead.donorAddress,
+    priority: "Medium",
+    deadline: null,
+    status: "Open",
+  });
+  await updateDonationLeadStatus(lead.id!, "TaskCreated");
+  return taskRef;
+}
+
+/** NGO converts a need report into a distribution/service task */
+export async function convertNeedReportToTask(
+  report: NeedReport,
+  ngoName: string
+) {
+  const taskRef = await createTask({
+    ngoId: report.ngoId,
+    ngoName,
+    title: `${report.category} assistance — ${report.contactName}`,
+    description: `Contact: ${report.contactName}${report.contactPhone ? ` (${report.contactPhone})` : ""}. People: ${report.numberOfPeople}. ${report.description}${report.notes ? ` Note: ${report.notes}` : ""}`,
+    taskType: report.category === "Health" ? "Service" : "Distribution",
+    category: report.category,
+    skillsRequired: report.category === "Health" ? ["First Aid", "Medical"] : [],
+    location: report.address,
+    priority: report.urgency,
+    deadline: null,
+    status: "Open",
+  });
+  await updateNeedReportStatus(report.id!, "TaskCreated");
+  return taskRef;
+}

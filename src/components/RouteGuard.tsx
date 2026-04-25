@@ -20,11 +20,11 @@ const ADMIN_ROUTES = [
 const NGO_ROUTES = [
   "/dashboard", "/dashboard/tasks", "/dashboard/heatmap",
   "/dashboard/analytics", "/dashboard/settings",
-  "/dashboard/my-volunteers",
+  "/dashboard/my-volunteers", "/dashboard/leads",
 ];
 const VOLUNTEER_ROUTES = [
   "/dashboard/missions", "/dashboard/available-tasks",
-  "/dashboard/heatmap", "/dashboard/settings"
+  "/dashboard/heatmap", "/dashboard/settings", "/dashboard/report"
 ];
 
 function isAllowed(role: string | null, pathname: string): boolean {
