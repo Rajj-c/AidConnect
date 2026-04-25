@@ -324,7 +324,7 @@ export function subscribeToApprovedNGOs(
   callback: (ngos: NGOProfile[]) => void
 ) {
   return onSnapshot(ngosRef(), (snap) => {
-    callback(snap.docs.map((d) => ({ ...d.data() } as NGOProfile)));
+    callback(snap.docs.map((d) => ({ uid: d.id, ...d.data() } as NGOProfile)));
   });
 }
 
