@@ -102,6 +102,24 @@ const VOLUNTEERS = [
   },
 ];
 
+const MASS_NGOS = [
+  { name: "Food Rescue Trichy", category: "Food", location: "Trichy" },
+  { name: "HealthNet Chennai", category: "Health", location: "Chennai" },
+  { name: "EduCare Coimbatore", category: "Education", location: "Coimbatore" },
+  { name: "Shelter Hope Madurai", category: "Shelter", location: "Madurai" },
+  { name: "CleanWater Salem", category: "Water", location: "Salem" },
+  { name: "AllRelief Erode", category: "General", location: "Erode" },
+  { name: "Food for All Tirunelveli", category: "Food", location: "Tirunelveli" },
+  { name: "MedAssist Vellore", category: "Health", location: "Vellore" },
+  { name: "BrightFuture Thoothukudi", category: "Education", location: "Thoothukudi" },
+  { name: "SafeHome Dindigul", category: "Shelter", location: "Dindigul" },
+];
+
+const MASS_VOL_NAMES = [
+  "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Ayaan", "Krishna", "Ishaan", "Shaurya",
+  "Saanvi", "Aanya", "Aadhya", "Aaradhya", "Ananya", "Pari", "Diya", "Navya", "Manya", "Aliya",
+];
+
 export default function SeedPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -192,18 +210,101 @@ export default function SeedPage() {
     }
   }
 
+  async function handleMassSeed() {
+    if (!user) {
+      toast({ title: "Must be logged in", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      let count = 0;
+      for (let i = 0; i < MASS_NGOS.length; i++) {
+        const ngo = MASS_NGOS[i];
+        const ngoId = `mock_ngo_${i + 1}`;
+        await setDoc(doc(db!, "users", ngoId), {
+          email: `ngo${i+1}@demo.com`,
+          role: "NGO",
+          displayName: ngo.name,
+          approved: false,
+          createdAt: serverTimestamp(),
+        });
+        await setDoc(doc(db!, "ngos", ngoId), {
+          orgName: ngo.name,
+          regNumber: `REG-${2000 + i}`,
+          phone: `+91-90000${2000 + i}`,
+          address: ngo.location,
+          category: ngo.category,
+          description: `Dedicated to ${ngo.category.toLowerCase()} relief in ${ngo.location}.`,
+          status: "pending",
+          createdAt: serverTimestamp(),
+        });
+        for (let j = 1; j <= 12; j++) {
+          const volId = `mock_vol_${i + 1}_${j}`;
+          const volName = `${MASS_VOL_NAMES[(i * 12 + j) % MASS_VOL_NAMES.length]} ${ngo.location.charAt(0)}`;
+          await setDoc(doc(db!, "users", volId), {
+            email: `vol_${i+1}_${j}@demo.com`,
+            role: "Volunteer",
+            displayName: volName,
+            approved: true,
+            ngoId: ngoId,
+            createdAt: serverTimestamp(),
+          });
+          await setDoc(doc(db!, "volunteers", volId), {
+            name: volName,
+            gender: j % 2 === 0 ? "female" : "male",
+            phone: `+91-98000${1000 + i * 12 + j}`,
+            address: `${ngo.location} Zone ${j % 4 + 1}`,
+            role: "Field Volunteer",
+            skills: [ngo.category, "Logistics", "First Aid"].slice(0, (j % 3) + 1),
+            availability: j % 2 === 0 ? "Immediate" : "Weekends",
+            ngoId: ngoId,
+            status: "Available",
+            rating: 4.0 + (j % 10) / 10,
+            tasksCompleted: j % 5,
+            createdAt: serverTimestamp(),
+          });
+          count++;
+        }
+      }
+      toast({ title: `Successfully seeded 10 NGOs and 120 Volunteers!` });
+    } catch (err: any) {
+      toast({ title: "Error seeding data", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/20">
-      <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-sm space-y-4">
-        <h1 className="text-2xl font-bold font-headline">Seed Database</h1>
-        <p className="text-muted-foreground text-sm">
-          Injects <strong>5 Volunteers</strong>, <strong>3 Needs</strong>, and <strong>2 Tasks</strong> with full GPS coords into Firebase for live demo/testing.
-        </p>
-        <Button onClick={handleSeed} disabled={loading || !user} className="w-full">
-          {loading ? "Seeding..." : "🌱 Seed Firebase DB"}
-        </Button>
-        {!user && <p className="text-xs text-red-500">Please log in first.</p>}
+    <div className="p-8 max-w-2xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Database Seeder</h1>
+        <p className="text-muted-foreground">Populate your AidConnect database with mock data for testing.</p>
       </div>
+
+      <div className="grid gap-4">
+        <Button 
+          onClick={handleSeed} 
+          disabled={loading || !user}
+          size="lg"
+          className="w-full text-lg"
+        >
+          {loading ? "Seeding..." : "Seed Hackathon Missions (Tasks & Needs)"}
+        </Button>
+
+        <Button 
+          onClick={handleMassSeed} 
+          disabled={loading || !user}
+          size="lg"
+          variant="secondary"
+          className="w-full text-lg border-primary/20 border"
+        >
+          {loading ? "Seeding..." : "Mass Seed: 10 NGOs & 120 Volunteers"}
+        </Button>
+      </div>
+
+      {!user && (
+        <p className="text-sm text-destructive text-center">You must be logged in to seed data.</p>
+      )}
     </div>
   );
 }
