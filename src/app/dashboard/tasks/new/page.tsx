@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardList, Loader2, Plus, X, Package, Truck, HeartHandshake } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { LocationPicker, PickedLocation } from "@/components/LocationPicker";
 
 const TASK_TYPE_INFO: Record<TaskType, { icon: React.ReactNode; label: string; desc: string; color: string }> = {
   Collection: {
@@ -54,6 +55,8 @@ export default function NewTaskPage() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>("");
   const [location, setLocation] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [priority, setPriority] = useState<"High" | "Medium" | "Low">("Medium");
   const [deadline, setDeadline] = useState("");
   const [skillInput, setSkillInput] = useState("");
@@ -86,6 +89,8 @@ export default function NewTaskPage() {
         category: category as any,
         skillsRequired: skills,
         location,
+        lat: lat ?? undefined,
+        lng: lng ?? undefined,
         priority,
         deadline: deadline ? new Date(deadline) as any : null,
         status: "Open",
@@ -197,14 +202,15 @@ export default function NewTaskPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location *</Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g., Anna Nagar, Trichy"
-                    value={location}
-                    onChange={e => setLocation(e.target.value)}
-                    required
+                <div className="col-span-2">
+                  <LocationPicker
+                    label="Task Location *"
+                    placeholder="e.g. Anna Nagar, Trichy"
+                    onSelect={(loc: PickedLocation) => {
+                      setLocation(loc.address);
+                      setLat(loc.lat || null);
+                      setLng(loc.lng || null);
+                    }}
                   />
                 </div>
 

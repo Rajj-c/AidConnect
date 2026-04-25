@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Gift, AlertTriangle, CheckCircle2, Loader2, Radio } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { LocationPicker, PickedLocation } from "@/components/LocationPicker";
 
 export default function ReportPage() {
   const { user, userRole } = useAuth();
@@ -28,6 +29,8 @@ export default function ReportPage() {
   const [donorName, setDonorName] = useState("");
   const [donorPhone, setDonorPhone] = useState("");
   const [donorAddress, setDonorAddress] = useState("");
+  const [donorLat, setDonorLat] = useState<number | null>(null);
+  const [donorLng, setDonorLng] = useState<number | null>(null);
   const [itemType, setItemType] = useState("Clothes");
   const [estimatedQty, setEstimatedQty] = useState("");
   const [availability, setAvailability] = useState("");
@@ -37,6 +40,8 @@ export default function ReportPage() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [needLat, setNeedLat] = useState<number | null>(null);
+  const [needLng, setNeedLng] = useState<number | null>(null);
   const [category, setCategory] = useState("Food");
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState("Medium");
@@ -68,7 +73,8 @@ export default function ReportPage() {
         notes: donorNotes || undefined,
       });
       setSubmitted("donation");
-      setDonorName(""); setDonorPhone(""); setDonorAddress(""); setEstimatedQty(""); setAvailability(""); setDonorNotes("");
+      setDonorName(""); setDonorPhone(""); setDonorAddress(""); setDonorLat(null); setDonorLng(null);
+      setEstimatedQty(""); setAvailability(""); setDonorNotes("");
       toast({ title: "Donation Lead Reported ✓", description: "Your NGO has been notified and will create a collection task." });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -96,7 +102,8 @@ export default function ReportPage() {
         notes: needNotes || undefined,
       });
       setSubmitted("need");
-      setContactName(""); setContactPhone(""); setAddress(""); setDescription(""); setNumberOfPeople(""); setNeedNotes("");
+      setContactName(""); setContactPhone(""); setAddress(""); setNeedLat(null); setNeedLng(null);
+      setDescription(""); setNumberOfPeople(""); setNeedNotes("");
       toast({ title: "Need Reported ✓", description: "Your NGO has been notified and will arrange assistance." });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -176,8 +183,15 @@ export default function ReportPage() {
                       </Select>
                     </div>
                     <div className="space-y-1 col-span-2">
-                      <Label>Donor's Address / Location *</Label>
-                      <Input value={donorAddress} onChange={e => setDonorAddress(e.target.value)} placeholder="e.g. 14, Anna Nagar, Trichy" required />
+                      <LocationPicker
+                        label="Donor's Address / Location *"
+                        placeholder="e.g. 14, Anna Nagar, Trichy"
+                        onSelect={(loc: PickedLocation) => {
+                          setDonorAddress(loc.address);
+                          setDonorLat(loc.lat || null);
+                          setDonorLng(loc.lng || null);
+                        }}
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label>Estimated Quantity *</Label>
@@ -243,8 +257,15 @@ export default function ReportPage() {
                       </Select>
                     </div>
                     <div className="space-y-1 col-span-2">
-                      <Label>Their Address / Location *</Label>
-                      <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="e.g. 3rd Cross, Gandhi Nagar, Trichy" required />
+                      <LocationPicker
+                        label="Their Address / Location *"
+                        placeholder="e.g. 3rd Cross, Gandhi Nagar, Trichy"
+                        onSelect={(loc: PickedLocation) => {
+                          setAddress(loc.address);
+                          setNeedLat(loc.lat || null);
+                          setNeedLng(loc.lng || null);
+                        }}
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label>Type of Need *</Label>
