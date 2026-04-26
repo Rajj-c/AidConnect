@@ -45,16 +45,32 @@ function timeAgo(ts: any) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function toBase64(file: File): Promise<string> {
+// Compress + resize image on canvas before sending to Gemini
+// Keeps file size <1MB regardless of original (phone photos can be 15MB+)
+function compressImage(file: File, maxPx = 1024, quality = 0.75): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Strip the data:...;base64, prefix
-      resolve(result.split(",")[1] || "");
+    const img = new window.Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // Scale down while keeping aspect ratio
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round((height * maxPx) / width); width = maxPx; }
+        else { width = Math.round((width * maxPx) / height); height = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      // White background for paper scans
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      resolve(dataUrl.split(",")[1] || "");
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = reject;
+    img.src = url;
   });
 }
 
@@ -116,15 +132,24 @@ export default function UploadReportPage() {
     setImageBase64(null);
     setRawText("");
 
-    if (IMAGE_EXTS.includes(ext)) {
-      // Image: show preview and extract base64
+    if (IMAGE_EXTS.includes(ext) || file.type.startsWith("image/")) {
+      // Image: compress on canvas first (phone photos can be 15MB+, API limit is 4MB)
       setFileType("image");
       const preview = URL.createObjectURL(file);
       setImagePreview(preview);
-      const b64 = await toBase64(file);
-      setImageBase64(b64);
-      setRawText(""); // AI will extract from the image itself
-      toast({ title: "📷 Image loaded", description: "AI will extract and analyse the content from this image." });
+      const originalMB = (file.size / 1024 / 1024).toFixed(1);
+      try {
+        const b64 = await compressImage(file, 1024, 0.82);
+        const compressedKB = Math.round((b64.length * 3) / 4 / 1024);
+        setImageBase64(b64);
+        setRawText("");
+        toast({
+          title: "📷 Image ready for AI",
+          description: `${originalMB}MB → ${compressedKB}KB. Gemini will read all text from the photo.`
+        });
+      } catch {
+        toast({ title: "Image load failed", description: "Please try a different photo.", variant: "destructive" });
+      }
     } else if (EXCEL_EXTS.includes(ext)) {
       // Excel: parse with SheetJS
       setFileType("excel");

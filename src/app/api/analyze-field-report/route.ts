@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Allow up to 8MB body (compressed images are <1MB but raw text can be large)
+export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
+
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -41,17 +45,19 @@ Return ONLY valid JSON. No explanation, no markdown code blocks.
 async function analyzeWithGemini(rawText: string, fileType: string, imageBase64?: string) {
   const parts: any[] = [];
 
-  // Add image if provided
   if (imageBase64) {
-    const mimeType = imageBase64.startsWith("/9j/") ? "image/jpeg" : "image/png";
+    // Canvas compression always outputs JPEG
     parts.push({
-      inlineData: {
-        mimeType,
-        data: imageBase64,
-      }
+      inlineData: { mimeType: "image/jpeg", data: imageBase64 }
     });
     parts.push({
-      text: `This is an image of a community field survey or document. Extract ALL text and data visible in the image, then:\n\n${PROMPT_TEMPLATE(rawText || "See image above", fileType)}`
+      text: `This image is a photo of a community field document — it could be a handwritten survey on paper, a printed complaint letter, a scanned form, or a phone screenshot.
+
+Your task:
+1. First, carefully read and extract ALL visible text from the image (even if handwritten or partially blurry)
+2. Then analyze that extracted content as community field data
+
+${PROMPT_TEMPLATE("(Extract from image above)", fileType)}`
     });
   } else {
     parts.push({ text: PROMPT_TEMPLATE(rawText, fileType) });
