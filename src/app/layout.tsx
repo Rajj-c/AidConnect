@@ -9,10 +9,10 @@ export const metadata: Metadata = {
   description: 'Data-Driven Volunteer Coordination for Social Impact.',
   manifest: '/manifest.json',
   themeColor: '#2563eb',
-  icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
-  },
+  icons: [
+    { rel: 'icon', url: '/favicon.ico', type: 'image/x-icon' },
+    { rel: 'shortcut icon', url: '/favicon.ico', type: 'image/x-icon' },
+  ],
 };
 
 export default function RootLayout({
