@@ -110,17 +110,28 @@ export default function AnalyticsPage() {
 
   function handleExport() {
     try {
-      let csv = "AidConnect Impact Analytics Report\n";
-      csv += `Generated on,${new Date().toLocaleString()}\n`;
-      csv += `Time Filter,${timeFilter === "all" ? "All Time" : `Last ${timeFilter} Days`}\n\n`;
-      csv += `Total Regions Served,${totalRegions}\n`;
-      csv += `Total Lives Impacted,${lives}\n\n`;
-      
-      csv += "Regional Progress\nRegion,Total Needs,Resolved\n";
-      regionalData.forEach(r => csv += `"${r.region}",${r.needs},${r.resolved}\n`);
-      
-      csv += "\nResource Deployment Status\nCategory,Target Completion (%)\n";
-      resourceAllocation.forEach(r => csv += `${r.category},${r.allocated}%\n`);
+      let csv = `"AIDCONNECT IMPACT ANALYTICS REPORT"\n`;
+      csv += `""\n`;
+      csv += `"REPORT METADATA",""\n`;
+      csv += `"Generated On","${new Date().toLocaleString()}"\n`;
+      csv += `"Time Filter","${timeFilter === "all" ? "All Time" : `Last ${timeFilter} Days`}"\n`;
+      csv += `""\n`;
+      csv += `"OVERALL IMPACT",""\n`;
+      csv += `"Total Regions Served","${totalRegions} Areas"\n`;
+      csv += `"Total Lives Impacted","${lives} People"\n`;
+      csv += `""\n`;
+      csv += `"REGIONAL PROGRESS","","",""\n`;
+      csv += `"Region Name","Total Needs Identified","Successfully Resolved","Resolution Rate"\n`;
+      regionalData.forEach(r => {
+        const rate = r.needs > 0 ? Math.round((r.resolved / r.needs) * 100) : 0;
+        csv += `"${r.region}",${r.needs},${r.resolved},"${rate}%"\n`;
+      });
+      csv += `""\n`;
+      csv += `"RESOURCE DEPLOYMENT STATUS",""\n`;
+      csv += `"Aid Category","Target Completion (%)"\n`;
+      resourceAllocation.forEach(r => {
+        csv += `"${r.category}","${r.allocated}%"\n`;
+      });
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
