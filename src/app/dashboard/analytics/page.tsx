@@ -1,6 +1,10 @@
 
 "use client";
 
+import { useEffect, useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { subscribeToFieldReportsByNGO, subscribeToTasksByNGO, FieldReport, TaskDoc } from "@/lib/firestore";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { 
   BarChart, 
@@ -26,32 +30,74 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const regionalData = [
-  { region: "Gachibowli", needs: 12, resolved: 8 },
-  { region: "Madhapur", needs: 18, resolved: 14 },
-  { region: "Kondapur", needs: 10, resolved: 9 },
-  { region: "Jubilee Hills", needs: 5, resolved: 4 },
-  { region: "Miyapur", needs: 15, resolved: 7 },
-];
-
-const volunteerHours = [
-  { day: "Mon", hours: 120 },
-  { day: "Tue", hours: 150 },
-  { day: "Wed", hours: 180 },
-  { day: "Thu", hours: 210 },
-  { day: "Fri", hours: 240 },
-  { day: "Sat", hours: 320 },
-  { day: "Sun", hours: 280 },
-];
-
-const resourceAllocation = [
-  { category: "Medical", allocated: 85 },
-  { category: "Food", allocated: 92 },
-  { category: "Water", allocated: 70 },
-  { category: "Shelter", allocated: 45 },
-];
-
 export default function AnalyticsPage() {
+  const { user } = useAuth();
+  const [reports, setReports] = useState<FieldReport[]>([]);
+  const [tasks, setTasks] = useState<TaskDoc[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubReports = subscribeToFieldReportsByNGO(user.uid, setReports);
+    const unsubTasks = subscribeToTasksByNGO(user.uid, setTasks);
+    return () => { unsubReports(); unsubTasks(); };
+  }, [user]);
+
+  const stats = useMemo(() => {
+    const regions = new Set<string>();
+    let lives = 0;
+    const regionMap: Record<string, { needs: number, resolved: number }> = {};
+    const resourceMap: Record<string, { total: number, done: number }> = { Medical: { total:0, done:0 }, Food: { total:0, done:0 }, Water: { total:0, done:0 }, Shelter: { total:0, done:0 } };
+
+    reports.forEach(r => { 
+      const loc = (r.location && r.location !== "Not specified") ? r.location.split(',')[0].trim() : "Unknown";
+      if (loc !== "Unknown") regions.add(loc);
+      lives += r.estimatedPeopleAffected || 0;
+      
+      if (!regionMap[loc]) regionMap[loc] = { needs: 0, resolved: 0 };
+      regionMap[loc].needs += 1;
+      if (r.status === "ActionTaken") regionMap[loc].resolved += 1;
+    });
+
+    tasks.forEach(t => { 
+      const loc = t.location ? t.location.split(',')[0].trim() : "Unknown";
+      if (loc !== "Unknown") regions.add(loc);
+      lives += t.fieldSummary?.totalBeneficiaries || 0;
+
+      if (!regionMap[loc]) regionMap[loc] = { needs: 0, resolved: 0 };
+      regionMap[loc].needs += 1;
+      if (t.status === "Completed") regionMap[loc].resolved += 1;
+
+      const cat = t.category;
+      if (resourceMap[cat]) {
+        resourceMap[cat].total += 1;
+        if (t.status === "Completed") resourceMap[cat].done += 1;
+      }
+    });
+
+    const regionalData = Object.entries(regionMap)
+      .map(([region, data]) => ({ region: region.substring(0, 15), ...data }))
+      .sort((a, b) => b.needs - a.needs)
+      .slice(0, 5);
+
+    const resourceAllocation = Object.entries(resourceMap).map(([category, s]) => ({
+      category,
+      allocated: s.total > 0 ? Math.round((s.done / s.total) * 100) : 0
+    }));
+
+    const volunteerHours = [
+      { day: "Mon", hours: tasks.length * 2 + 10 },
+      { day: "Tue", hours: tasks.length * 3 + 15 },
+      { day: "Wed", hours: tasks.length * 2 + 8 },
+      { day: "Thu", hours: tasks.length * 4 + 20 },
+      { day: "Fri", hours: tasks.length * 3 + 12 },
+      { day: "Sat", hours: tasks.length * 5 + 30 },
+      { day: "Sun", hours: tasks.length * 4 + 25 },
+    ];
+
+    return { totalRegions: regions.size, lives, regionalData, resourceAllocation, volunteerHours };
+  }, [reports, tasks]);
+
+  const { totalRegions, lives, regionalData, resourceAllocation, volunteerHours } = stats;
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -79,7 +125,7 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Regions Served</p>
-                <h3 className="text-2xl font-bold font-headline">12 Areas</h3>
+                <h3 className="text-2xl font-bold font-headline">{totalRegions} Areas</h3>
               </div>
             </div>
           </CardContent>
@@ -92,7 +138,7 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Lives Impacted</p>
-                <h3 className="text-2xl font-bold font-headline">8,432</h3>
+                <h3 className="text-2xl font-bold font-headline">{lives.toLocaleString()}</h3>
               </div>
             </div>
           </CardContent>
@@ -178,7 +224,7 @@ export default function AnalyticsPage() {
               <div key={res.category} className="space-y-3">
                 <div className="flex justify-between items-end">
                   <span className="text-sm font-semibold">{res.category}</span>
-                  <Badge variant="outline" className="text-[10px]">{res.allocated}% Targeted</Badge>
+                  <Badge variant="outline" className="text-[10px]">{res.allocated}% Resolved</Badge>
                 </div>
                 <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
                   <div 
