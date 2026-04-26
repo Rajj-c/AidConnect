@@ -83,7 +83,13 @@ export default function LeadsPage() {
   }
 
   function timeAgo(ts: any) {
-    try { return formatDistanceToNow(ts.toDate(), { addSuffix: true }); } catch { return "recently"; }
+    if (!ts?.toDate) return "Time not recorded";
+    try {
+      return new Intl.DateTimeFormat('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      }).format(ts.toDate());
+    } catch { return "recently"; }
   }
 
   return (

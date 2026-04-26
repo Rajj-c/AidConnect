@@ -33,12 +33,11 @@ const SEV_COLORS = {
 const CAT_COLORS = ["#1566ED", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
 function timeAgo(ts: any) {
-  if (!ts?.toDate) return "just now";
-  const d = Math.floor((Date.now() - ts.toDate().getTime()) / 1000);
-  if (d < 60) return "just now";
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
-  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
-  return `${Math.floor(d / 86400)}d ago`;
+  if (!ts?.toDate) return "Just now";
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  }).format(ts.toDate());
 }
 
 function handleEmergencyActivate(type: string, region: string) {

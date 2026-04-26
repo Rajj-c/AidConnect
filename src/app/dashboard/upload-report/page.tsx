@@ -39,12 +39,11 @@ const TEXT_EXTS  = ["txt", "csv", "tsv", "md", "log", "json", "pdf", "docx", "do
 const ALL_ACCEPT  = ".txt,.csv,.tsv,.md,.json,.xlsx,.xls,.ods,.jpg,.jpeg,.png,.gif,.webp,.bmp,.pdf,.docx,.doc";
 
 function timeAgo(ts: any) {
-  if (!ts?.toDate) return "just now";
-  const diff = Math.floor((Date.now() - ts.toDate().getTime()) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (!ts?.toDate) return "Time not recorded";
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  }).format(ts.toDate());
 }
 
 // Compress + resize image on canvas before sending to Gemini
