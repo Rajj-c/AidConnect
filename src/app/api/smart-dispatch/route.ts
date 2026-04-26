@@ -28,7 +28,7 @@ ${volunteers.map((v, i) => `${i + 1}. ${v.name} | Skills: ${(v.skills || []).joi
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { 
           temperature: 0.1, 
-          maxOutputTokens: 800, 
+          maxOutputTokens: 2048, 
           responseMimeType: "application/json",
           responseSchema: {
             type: "ARRAY",
