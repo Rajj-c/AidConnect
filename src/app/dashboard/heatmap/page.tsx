@@ -2,10 +2,19 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { subscribeToNeeds, subscribeToVolunteers, NeedDoc, VolunteerDoc } from "@/lib/firestore";
+import { useAuth } from "@/contexts/AuthContext";
+import { subscribeToNeeds, subscribeToVolunteers, subscribeToFieldReportsByNGO, NeedDoc, VolunteerDoc, FieldReport } from "@/lib/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, AlertTriangle, Flame, Activity } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { MapPin, Users, AlertTriangle, Flame, Activity, Brain, Sparkles } from "lucide-react";
+
+const SEV = {
+  Critical: { color: "bg-red-100 text-red-800 border-red-200", dot: "bg-red-500 animate-pulse", bar: "bg-red-500" },
+  High:     { color: "bg-orange-100 text-orange-800 border-orange-200", dot: "bg-orange-400", bar: "bg-orange-500" },
+  Medium:   { color: "bg-yellow-100 text-yellow-800 border-yellow-200", dot: "bg-yellow-400", bar: "bg-yellow-400" },
+  Low:      { color: "bg-green-100 text-green-800 border-green-200", dot: "bg-green-400", bar: "bg-green-400" },
+};
 
 const DynamicHeatmap = dynamic(() => import("@/components/MapComponent").then(m => ({ default: m.HeatmapComponent })), {
   ssr: false,
@@ -17,9 +26,20 @@ const DynamicHeatmap = dynamic(() => import("@/components/MapComponent").then(m 
   ),
 });
 
+function timeAgo(ts: any) {
+  if (!ts?.toDate) return "just now";
+  const d = Math.floor((Date.now() - ts.toDate().getTime()) / 1000);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return `${Math.floor(d / 86400)}d ago`;
+}
+
 export default function HeatmapPage() {
-  const [needs, setNeeds] = useState<NeedDoc[]>([]);
+  const { user, userRole } = useAuth();
+  const [needs, setNeeds]       = useState<NeedDoc[]>([]);
   const [volunteers, setVolunteers] = useState<VolunteerDoc[]>([]);
+  const [reports, setReports]   = useState<FieldReport[]>([]);
 
   useEffect(() => {
     const u1 = subscribeToNeeds(setNeeds);
@@ -27,16 +47,25 @@ export default function HeatmapPage() {
     return () => { u1(); u2(); };
   }, []);
 
-  const highNeeds = needs.filter(n => n.priority === "High" && n.status === "Open");
-  const medNeeds = needs.filter(n => n.priority === "Medium" && n.status === "Open");
-  const lowNeeds = needs.filter(n => n.priority === "Low" && n.status === "Open");
-  const availVols = volunteers.filter(v => v.status === "Available");
+  useEffect(() => {
+    if (!user || userRole !== "NGO") return;
+    return subscribeToFieldReportsByNGO(user.uid, setReports);
+  }, [user, userRole]);
 
-  // Category breakdown
+  const highNeeds   = needs.filter(n => n.priority === "High" && n.status === "Open");
+  const medNeeds    = needs.filter(n => n.priority === "Medium" && n.status === "Open");
+  const availVols   = volunteers.filter(v => v.status === "Available");
+
+  // Field reports ranked by AI severity score
+  const rankedReports = [...reports]
+    .filter(r => r.status !== "ActionTaken")
+    .sort((a, b) => (b.severity?.score || 0) - (a.severity?.score || 0));
+
   const categories = ["Food", "Health", "Education", "Shelter", "Water", "Other"] as const;
   const catCounts = categories.map(cat => ({
     cat,
-    count: needs.filter(n => n.category === cat && n.status === "Open").length,
+    count: needs.filter(n => n.category === cat && n.status === "Open").length +
+           reports.filter(r => (r.categories || []).some(c => c.toLowerCase().includes(cat.toLowerCase()))).length,
   })).filter(c => c.count > 0);
 
   return (
@@ -50,60 +79,34 @@ export default function HeatmapPage() {
           <h1 className="text-3xl font-bold font-headline text-foreground">Urgency Heatmap</h1>
         </div>
         <p className="text-muted-foreground">
-          Live geospatial view of community need intensity. Red zones = critical. Click any circle for details.
+          Live geospatial view of community need intensity + AI-ranked field reports.
         </p>
       </div>
 
       {/* Stats strip */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Card className="border-none shadow-sm bg-destructive/5">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-headline text-destructive">{highNeeds.length}</p>
-              <p className="text-xs text-muted-foreground">Critical zones</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-amber-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-              <Activity className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-headline text-amber-600">{medNeeds.length}</p>
-              <p className="text-xs text-muted-foreground">Medium zones</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-emerald-50">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <Users className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-headline text-emerald-600">{availVols.length}</p>
-              <p className="text-xs text-muted-foreground">Available volunteers</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-primary/5">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <MapPin className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-headline text-primary">{needs.filter(n => n.status === "Open").length}</p>
-              <p className="text-xs text-muted-foreground">Open needs total</p>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { label: "Critical Zones", value: highNeeds.length + reports.filter(r => r.severity?.level === "Critical").length, icon: AlertTriangle, cls: "bg-destructive/5 text-destructive" },
+          { label: "AI Field Reports", value: rankedReports.length, icon: Brain, cls: "bg-primary/5 text-primary" },
+          { label: "Avail. Volunteers", value: availVols.length, icon: Users, cls: "bg-emerald-50 text-emerald-600" },
+          { label: "Total Open Needs", value: needs.filter(n => n.status === "Open").length + rankedReports.length, icon: Activity, cls: "bg-amber-50 text-amber-600" },
+        ].map(({ label, value, icon: Icon, cls }) => (
+          <Card key={label} className="border-none shadow-sm bg-white">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`h-10 w-10 rounded-full ${cls} bg-opacity-20 flex items-center justify-center shrink-0`}>
+                <Icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold font-headline">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-4">
-        {/* Map — takes up most of the space */}
+        {/* Map */}
         <Card className="lg:col-span-3 border-none shadow-lg overflow-hidden">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
@@ -113,7 +116,6 @@ export default function HeatmapPage() {
               </CardTitle>
               <CardDescription className="text-xs">Circles = need intensity · Dots = volunteer positions</CardDescription>
             </div>
-            {/* Legend */}
             <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider">
               {[
                 { color: "bg-destructive", label: "Critical" },
@@ -128,7 +130,7 @@ export default function HeatmapPage() {
               ))}
             </div>
           </CardHeader>
-          <CardContent className="p-0 h-[520px]">
+          <CardContent className="p-0 h-[500px]">
             <DynamicHeatmap />
           </CardContent>
         </Card>
@@ -153,10 +155,7 @@ export default function HeatmapPage() {
                       <span className="text-muted-foreground font-bold">{count}</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );
@@ -164,31 +163,66 @@ export default function HeatmapPage() {
             </CardContent>
           </Card>
 
-          {/* Critical needs list */}
-          <Card className="border-none shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-headline flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                Critical Zones ({highNeeds.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[280px] overflow-y-auto">
-              {highNeeds.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No critical needs 🎉</p>
-              ) : highNeeds.map(n => (
-                <div key={n.id} className="p-2.5 bg-destructive/5 border border-destructive/10 rounded-lg">
-                  <p className="text-xs font-semibold leading-tight">{n.description}</p>
-                  <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                    <MapPin className="h-3 w-3 text-destructive" />
-                    {n.location}
+          {/* AI-Ranked Field Reports */}
+          {rankedReports.length > 0 && (
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-headline flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" />
+                  AI-Ranked Reports
+                  <Badge className="text-[9px] bg-primary/10 text-primary border-none gap-1">
+                    <Sparkles className="h-2.5 w-2.5" />Live
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[360px] overflow-y-auto">
+                {rankedReports.map((r, i) => {
+                  const s = SEV[r.severity?.level as keyof typeof SEV] || SEV.Low;
+                  return (
+                    <div key={r.id} className="p-2.5 rounded-xl border border-slate-100 bg-white">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${s.dot}`} />
+                        <Badge className={`text-[9px] border ${s.color} py-0`}>
+                          {r.severity?.level} · {r.severity?.score}/100
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground ml-auto">#{i + 1}</span>
+                      </div>
+                      <p className="text-xs font-semibold leading-tight text-slate-800 line-clamp-1">{r.summary}</p>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+                        <MapPin className="h-3 w-3 shrink-0 text-primary" />
+                        <span className="truncate">{r.location}</span>
+                        <span className="shrink-0">{r.estimatedPeopleAffected} affected</span>
+                      </div>
+                      <Progress value={r.severity?.score || 0} className="h-1 mt-1.5" />
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Traditional critical needs */}
+          {highNeeds.length > 0 && (
+            <Card className="border-none shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-headline flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                  Critical Zones ({highNeeds.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[200px] overflow-y-auto">
+                {highNeeds.map(n => (
+                  <div key={n.id} className="p-2.5 bg-destructive/5 border border-destructive/10 rounded-lg">
+                    <p className="text-xs font-semibold leading-tight">{n.description}</p>
+                    <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                      <MapPin className="h-3 w-3 text-destructive" />{n.location}
+                    </div>
+                    <Badge variant="outline" className="text-[9px] py-0 border-destructive/30 text-destructive mt-1">{n.category}</Badge>
                   </div>
-                  <div className="flex gap-1 mt-1.5">
-                    <Badge variant="outline" className="text-[9px] py-0 border-destructive/30 text-destructive">{n.category}</Badge>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
