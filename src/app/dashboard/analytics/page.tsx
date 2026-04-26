@@ -29,11 +29,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "@/hooks/use-toast";
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
   const [reports, setReports] = useState<FieldReport[]>([]);
   const [tasks, setTasks] = useState<TaskDoc[]>([]);
+  const [timeFilter, setTimeFilter] = useState<"all" | "7" | "30">("all");
 
   useEffect(() => {
     if (!user) return;
@@ -43,12 +46,18 @@ export default function AnalyticsPage() {
   }, [user]);
 
   const stats = useMemo(() => {
+    const now = Date.now();
+    const filterMs = timeFilter === "7" ? 7 * 86400000 : timeFilter === "30" ? 30 * 86400000 : Infinity;
+    
+    const filteredReports = reports.filter(r => r.createdAt && (now - r.createdAt.toDate().getTime() <= filterMs));
+    const filteredTasks = tasks.filter(t => t.createdAt && (now - t.createdAt.toDate().getTime() <= filterMs));
+
     const regions = new Set<string>();
     let lives = 0;
     const regionMap: Record<string, { needs: number, resolved: number }> = {};
     const resourceMap: Record<string, { total: number, done: number }> = { Medical: { total:0, done:0 }, Food: { total:0, done:0 }, Water: { total:0, done:0 }, Shelter: { total:0, done:0 } };
 
-    reports.forEach(r => { 
+    filteredReports.forEach(r => { 
       const loc = (r.location && r.location !== "Not specified") ? r.location.split(',')[0].trim() : "Unknown";
       if (loc !== "Unknown") regions.add(loc);
       lives += r.estimatedPeopleAffected || 0;
@@ -58,7 +67,7 @@ export default function AnalyticsPage() {
       if (r.status === "ActionTaken") regionMap[loc].resolved += 1;
     });
 
-    tasks.forEach(t => { 
+    filteredTasks.forEach(t => { 
       const loc = t.location ? t.location.split(',')[0].trim() : "Unknown";
       if (loc !== "Unknown") regions.add(loc);
       lives += t.fieldSummary?.totalBeneficiaries || 0;
@@ -85,19 +94,50 @@ export default function AnalyticsPage() {
     }));
 
     const volunteerHours = [
-      { day: "Mon", hours: tasks.length * 2 + 10 },
-      { day: "Tue", hours: tasks.length * 3 + 15 },
-      { day: "Wed", hours: tasks.length * 2 + 8 },
-      { day: "Thu", hours: tasks.length * 4 + 20 },
-      { day: "Fri", hours: tasks.length * 3 + 12 },
-      { day: "Sat", hours: tasks.length * 5 + 30 },
-      { day: "Sun", hours: tasks.length * 4 + 25 },
+      { day: "Mon", hours: filteredTasks.length * 2 + 10 },
+      { day: "Tue", hours: filteredTasks.length * 3 + 15 },
+      { day: "Wed", hours: filteredTasks.length * 2 + 8 },
+      { day: "Thu", hours: filteredTasks.length * 4 + 20 },
+      { day: "Fri", hours: filteredTasks.length * 3 + 12 },
+      { day: "Sat", hours: filteredTasks.length * 5 + 30 },
+      { day: "Sun", hours: filteredTasks.length * 4 + 25 },
     ];
 
     return { totalRegions: regions.size, lives, regionalData, resourceAllocation, volunteerHours };
-  }, [reports, tasks]);
+  }, [reports, tasks, timeFilter]);
 
   const { totalRegions, lives, regionalData, resourceAllocation, volunteerHours } = stats;
+
+  function handleExport() {
+    try {
+      let csv = "AidConnect Impact Analytics Report\n";
+      csv += `Generated on,${new Date().toLocaleString()}\n`;
+      csv += `Time Filter,${timeFilter === "all" ? "All Time" : `Last ${timeFilter} Days`}\n\n`;
+      csv += `Total Regions Served,${totalRegions}\n`;
+      csv += `Total Lives Impacted,${lives}\n\n`;
+      
+      csv += "Regional Progress\nRegion,Total Needs,Resolved\n";
+      regionalData.forEach(r => csv += `"${r.region}",${r.needs},${r.resolved}\n`);
+      
+      csv += "\nResource Deployment Status\nCategory,Target Completion (%)\n";
+      resourceAllocation.forEach(r => csv += `${r.category},${r.allocated}%\n`);
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('hidden', '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', `impact_report_${new Date().getTime()}.csv`);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      toast({ title: "Report Exported", description: "Your CSV report has been downloaded." });
+    } catch (e: any) {
+      toast({ title: "Export Failed", description: e.message, variant: "destructive" });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -106,10 +146,21 @@ export default function AnalyticsPage() {
           <p className="text-muted-foreground">Comprehensive insights into community support and resource efficiency.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="h-4 w-4" /> Filter
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Filter className="h-4 w-4" /> 
+                {timeFilter === "all" ? "All Time" : `Last ${timeFilter} Days`}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTimeFilter("7")}>Last 7 Days</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTimeFilter("30")}>Last 30 Days</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTimeFilter("all")}>All Time</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExport}>
             <Download className="h-4 w-4" /> Export Report
           </Button>
         </div>
