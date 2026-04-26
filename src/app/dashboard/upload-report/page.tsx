@@ -235,7 +235,9 @@ export default function UploadReportPage() {
         actionRecommendations: result.actionRecommendations || [],
         severity: result.severity || { level: "Low", score: 0, reasoning: "" },
         status: "New",
-        ...(manualLocationData?.lat ? { lat: manualLocationData.lat, lng: manualLocationData.lng } : {})
+        ...(manualLocationData?.lat 
+          ? { lat: manualLocationData.lat, lng: manualLocationData.lng } 
+          : result.lat ? { lat: result.lat, lng: result.lng } : {})
       });
       toast({ title: "📤 Report Submitted!", description: "Your NGO can now view the AI-structured report." });
       setRawText(""); setResult(null); setFileName(""); setImagePreview(null); setImageBase64(null);

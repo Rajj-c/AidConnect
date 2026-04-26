@@ -890,6 +890,8 @@ export async function convertNeedReportToTask(
     category: report.category,
     skillsRequired: report.category === "Health" ? ["First Aid", "Medical"] : [],
     location: report.address,
+    lat: report.lat,
+    lng: report.lng,
     priority: report.urgency,
     deadline: null,
     status: "Open",

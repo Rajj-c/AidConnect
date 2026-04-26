@@ -188,6 +188,24 @@ export async function POST(req: NextRequest) {
       result = localAnalyze(rawText || "", fileType || "text", locationHint);
     }
 
+    // Attempt to automatically geocode the extracted location if the user didn't provide a map pin
+    if (result.location && result.location !== "Not specified") {
+      try {
+        // Appending 'India' or the region to help Nominatim locate it accurately
+        const query = encodeURIComponent(result.location + (result.location.toLowerCase().includes("hyderabad") ? "" : ", Hyderabad, India"));
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
+          headers: { 'User-Agent': 'AidConnect/1.0' }
+        });
+        const geoData = await geoRes.json();
+        if (geoData && geoData.length > 0) {
+          result.lat = parseFloat(geoData[0].lat);
+          result.lng = parseFloat(geoData[0].lon);
+        }
+      } catch (err) {
+        console.warn("Geocoding failed during analysis:", err);
+      }
+    }
+
     return NextResponse.json({
       ...result,
       analyzedAt: new Date().toISOString(),
