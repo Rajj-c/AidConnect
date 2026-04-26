@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeToNeeds, subscribeToVolunteers, subscribeToFieldReportsByNGO, NeedDoc, VolunteerDoc, FieldReport } from "@/lib/firestore";
+import { subscribeToVolunteers, subscribeToFieldReportsByNGO, subscribeToTasksByNGO, VolunteerDoc, FieldReport, TaskDoc } from "@/lib/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -36,23 +36,23 @@ function timeAgo(ts: any) {
 
 export default function HeatmapPage() {
   const { user, userRole } = useAuth();
-  const [needs, setNeeds]       = useState<NeedDoc[]>([]);
+  const [tasks, setTasks]       = useState<TaskDoc[]>([]);
   const [volunteers, setVolunteers] = useState<VolunteerDoc[]>([]);
   const [reports, setReports]   = useState<FieldReport[]>([]);
 
   useEffect(() => {
-    const u1 = subscribeToNeeds(setNeeds);
-    const u2 = subscribeToVolunteers(setVolunteers);
-    return () => { u1(); u2(); };
+    return subscribeToVolunteers(setVolunteers);
   }, []);
 
   useEffect(() => {
     if (!user || userRole !== "NGO") return;
-    return subscribeToFieldReportsByNGO(user.uid, setReports);
+    const u1 = subscribeToFieldReportsByNGO(user.uid, setReports);
+    const u2 = subscribeToTasksByNGO(user.uid, setTasks);
+    return () => { u1(); u2(); };
   }, [user, userRole]);
 
-  const highNeeds   = needs.filter(n => n.priority === "High" && n.status === "Open");
-  const medNeeds    = needs.filter(n => n.priority === "Medium" && n.status === "Open");
+  const highNeeds   = tasks.filter(t => t.priority === "High" && t.status !== "Completed");
+  const medNeeds    = tasks.filter(t => t.priority === "Medium" && t.status !== "Completed");
   const availVols   = volunteers.filter(v => v.status === "Available");
 
   // Field reports ranked by AI severity score
@@ -63,8 +63,8 @@ export default function HeatmapPage() {
   const categories = ["Food", "Health", "Education", "Shelter", "Water", "Other"] as const;
   const catCounts = categories.map(cat => ({
     cat,
-    count: needs.filter(n => n.category === cat && n.status === "Open").length +
-           reports.filter(r => (r.categories || []).some(c => c.toLowerCase().includes(cat.toLowerCase()))).length,
+    count: tasks.filter(t => t.category === cat && t.status !== "Completed").length +
+           reports.filter(r => r.status !== "ActionTaken" && (r.categories || []).some(c => c.toLowerCase().includes(cat.toLowerCase()))).length,
   })).filter(c => c.count > 0);
 
   return (
@@ -88,7 +88,7 @@ export default function HeatmapPage() {
           { label: "Critical Zones", value: highNeeds.length + reports.filter(r => r.severity?.level === "Critical").length, icon: AlertTriangle, cls: "bg-destructive/5 text-destructive" },
           { label: "AI Field Reports", value: rankedReports.length, icon: Brain, cls: "bg-primary/5 text-primary" },
           { label: "Avail. Volunteers", value: availVols.length, icon: Users, cls: "bg-emerald-50 text-emerald-600" },
-          { label: "Total Open Needs", value: needs.filter(n => n.status === "Open").length + rankedReports.length, icon: Activity, cls: "bg-amber-50 text-amber-600" },
+          { label: "Total Open Needs", value: tasks.filter(t => t.status !== "Completed").length + rankedReports.length, icon: Activity, cls: "bg-amber-50 text-amber-600" },
         ].map(({ label, value, icon: Icon, cls }) => (
           <Card key={label} className="border-none shadow-sm bg-white">
             <CardContent className="p-4 flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function HeatmapPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0 h-[500px]">
-            <DynamicHeatmap />
+            <DynamicHeatmap tasks={tasks} reports={reports} volunteers={volunteers} />
           </CardContent>
         </Card>
 

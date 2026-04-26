@@ -9,19 +9,18 @@ import { subscribeToNeeds, subscribeToVolunteers, NeedDoc, VolunteerDoc } from "
 // Shared center for Hyderabad area
 export const MAP_CENTER: [number, number] = [17.440080, 78.348916];
 
-// Resolve coordinates from a need, falling back to a deterministic offset
-export function getCoords(m: NeedDoc, index: number): [number, number] {
+export function getCoords(m: { lat?: number, lng?: number, location?: string }, index: number): [number, number] {
   if (m.lat && m.lng) return [m.lat, m.lng];
-  const hash = m.location.split("").reduce((a, b) => a + b.charCodeAt(0), 0) + index * 10;
+  const hash = (m.location || "").split("").reduce((a, b) => a + b.charCodeAt(0), 0) + index * 10;
   return [MAP_CENTER[0] + (hash % 100 - 50) * 0.0008, MAP_CENTER[1] + ((hash * 7) % 100 - 50) * 0.0008];
 }
 
-function MapBoundsFitter({ needs }: { needs: NeedDoc[] }) {
+function MapBoundsFitter({ items }: { items: { lat?: number, lng?: number }[] }) {
   const map = useMap();
   useEffect(() => {
-    const coords = needs.filter(n => n.lat && n.lng).map(n => [n.lat!, n.lng!] as [number, number]);
+    const coords = items.filter(n => n.lat && n.lng).map(n => [n.lat!, n.lng!] as [number, number]);
     if (coords.length > 0) map.fitBounds(L.latLngBounds(coords), { padding: [50, 50], maxZoom: 15 });
-  }, [needs, map]);
+  }, [items, map]);
   return null;
 }
 
@@ -52,7 +51,7 @@ export default function MapComponent() {
 
   return (
     <MapContainer center={MAP_CENTER} zoom={13} className="w-full h-full z-0">
-      <MapBoundsFitter needs={needs} />
+      <MapBoundsFitter items={needs} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -78,11 +77,10 @@ export default function MapComponent() {
   );
 }
 
-/** Full heatmap version — used on the dedicated /dashboard/heatmap page */
-export function HeatmapComponent() {
-  const [needs, setNeeds] = useState<NeedDoc[]>([]);
-  const [volunteers, setVolunteers] = useState<VolunteerDoc[]>([]);
+import { TaskDoc, FieldReport } from "@/lib/firestore";
 
+/** Full heatmap version — used on the dedicated /dashboard/heatmap page */
+export function HeatmapComponent({ tasks = [], reports = [], volunteers = [] }: { tasks?: TaskDoc[], reports?: FieldReport[], volunteers?: VolunteerDoc[] }) {
   useEffect(() => {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
@@ -90,9 +88,6 @@ export function HeatmapComponent() {
       iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
       shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
     });
-    const u1 = subscribeToNeeds(setNeeds);
-    const u2 = subscribeToVolunteers(setVolunteers);
-    return () => { u1(); u2(); };
   }, []);
 
   // Volunteer icon — small green dot
@@ -105,14 +100,14 @@ export function HeatmapComponent() {
 
   return (
     <MapContainer center={MAP_CENTER} zoom={13} className="w-full h-full z-0">
-      <MapBoundsFitter needs={needs} />
+      <MapBoundsFitter items={[...tasks, ...reports]} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* Heat circles for each need */}
-      {needs.map((m, idx) => {
+      {/* Heat circles for each task */}
+      {tasks.filter(t => t.status !== "Completed").map((m, idx) => {
         const pos = getCoords(m, idx);
         const isHigh = m.priority === "High";
         const isMed = m.priority === "Medium";
@@ -123,30 +118,50 @@ export function HeatmapComponent() {
 
         return (
           <div key={m.id || idx}>
-            {/* Outer glow ring */}
-            <Circle
-              center={pos}
-              radius={radius}
-              pathOptions={{ color: outerColor, fillColor: outerColor, fillOpacity: outerOpacity, weight: 0 }}
-            />
-            {/* Inner hot core */}
-            <Circle
-              center={pos}
-              radius={radius * 0.4}
-              pathOptions={{ color: innerColor, fillColor: innerColor, fillOpacity: 0.45, weight: 1.5, dashArray: isHigh ? "4 2" : undefined }}
-            >
+            <Circle center={pos} radius={radius} pathOptions={{ color: outerColor, fillColor: outerColor, fillOpacity: outerOpacity, weight: 0 }} />
+            <Circle center={pos} radius={radius * 0.4} pathOptions={{ color: innerColor, fillColor: innerColor, fillOpacity: 0.45, weight: 1.5, dashArray: isHigh ? "4 2" : undefined }}>
               <Popup>
                 <div className="font-sans min-w-[180px]">
-                  <div className="font-bold text-sm mb-1">{m.description}</div>
+                  <div className="font-bold text-sm mb-1">{m.title}</div>
                   <div className="flex gap-1 items-center mb-1">
                     <span style={{ background: outerColor }} className="inline-block w-2 h-2 rounded-full" />
-                    <span className="text-xs font-bold" style={{ color: outerColor }}>{m.priority} Priority</span>
+                    <span className="text-xs font-bold" style={{ color: outerColor }}>{m.priority} Priority Task</span>
                     <span className="text-xs text-gray-400 ml-auto">{m.category}</span>
                   </div>
                   <div className="text-[11px] text-gray-500">{m.location}</div>
-                  {m.peopleAffected && (
-                    <div className="text-[11px] mt-1 text-gray-500">~{m.peopleAffected} people affected</div>
+                  {m.fieldSummary?.totalBeneficiaries && (
+                    <div className="text-[11px] mt-1 text-gray-500">~{m.fieldSummary.totalBeneficiaries} beneficiaries</div>
                   )}
+                </div>
+              </Popup>
+            </Circle>
+          </div>
+        );
+      })}
+
+      {/* Heat circles for AI Reports */}
+      {reports.filter(r => r.status !== "ActionTaken").map((r, idx) => {
+        const pos = getCoords(r, idx + 1000); // offset index
+        const isHigh = r.severity?.level === "Critical" || r.severity?.level === "High";
+        const isMed = r.severity?.level === "Medium";
+        const outerColor = isHigh ? "#ef4444" : isMed ? "#f59e0b" : "#3b82f6";
+        const outerOpacity = isHigh ? 0.15 : isMed ? 0.10 : 0.08;
+        const innerColor = isHigh ? "#b91c1c" : isMed ? "#b45309" : "#1d4ed8";
+        const radius = isHigh ? 450 : isMed ? 300 : 200;
+
+        return (
+          <div key={r.id || idx}>
+            <Circle center={pos} radius={radius} pathOptions={{ color: outerColor, fillColor: outerColor, fillOpacity: outerOpacity, weight: 0 }} />
+            <Circle center={pos} radius={radius * 0.3} pathOptions={{ color: innerColor, fillColor: innerColor, fillOpacity: 0.3, weight: 1.5 }}>
+              <Popup>
+                <div className="font-sans min-w-[180px]">
+                  <div className="font-bold text-xs mb-1 uppercase tracking-wider text-blue-600">AI Field Report</div>
+                  <div className="text-sm mb-1">{r.summary?.substring(0, 80)}...</div>
+                  <div className="flex gap-1 items-center mb-1">
+                    <span style={{ background: outerColor }} className="inline-block w-2 h-2 rounded-full" />
+                    <span className="text-[10px] font-bold" style={{ color: outerColor }}>{r.severity?.level || "Unknown"} Severity</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500">{r.location}</div>
                 </div>
               </Popup>
             </Circle>
