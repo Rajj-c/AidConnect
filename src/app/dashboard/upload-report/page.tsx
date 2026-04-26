@@ -248,7 +248,7 @@ export default function UploadReportPage() {
     }
   }
 
-  const canAnalyse = (!!rawText.trim() || !!imageBase64) && !analyzing;
+  const canAnalyse = (!!rawText.trim() || !!imageBase64) && !!manualLocationData && !analyzing;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -371,15 +371,15 @@ export default function UploadReportPage() {
             />
 
             <div>
-              <div className="bg-white border rounded-xl p-3 shadow-sm">
+              <div className="bg-white border-2 border-primary/20 rounded-xl p-3 shadow-sm">
                 <LocationPicker
-                  label="Precise Location (Optional)"
-                  placeholder="e.g. Jubilee Hills, Hyderabad"
+                  label="Precise Location (Required)"
+                  placeholder="Drop a pin on the map to mark the exact area..."
                   onSelect={loc => setManualLocationData(loc)}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1 px-1">
-                <Lightbulb className="h-3 w-3" /> Pinning the location helps the AI map the report accurately. If left blank, AI will guess from text.
+                <Lightbulb className="h-3 w-3 text-amber-500" /> You MUST pin the location so we can plot it accurately on the Urgency Heatmap.
               </p>
             </div>
 
