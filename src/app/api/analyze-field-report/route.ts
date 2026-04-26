@@ -7,7 +7,7 @@ export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-const PROMPT_TEMPLATE = (rawText: string, fileType: string) => `
+const PROMPT_TEMPLATE = (rawText: string, fileType: string, locationHint?: string) => `
 You are an expert community data analyst for an NGO platform called AidConnect. A volunteer has uploaded field data collected from the community (surveys, WhatsApp messages, Google Forms, interviews, Excel data, etc.).
 
 Analyze this data and return a structured JSON response with EXACTLY this format (no extra keys, no markdown, raw JSON only):
@@ -15,7 +15,7 @@ Analyze this data and return a structured JSON response with EXACTLY this format
   "summary": "A 2-3 sentence plain-language summary of what this data tells us about the community situation",
   "keyFindings": ["finding 1", "finding 2", "finding 3", "...up to 6 key findings extracted from the data"],
   "affectedGroups": ["Children", "Elderly", "Women", "etc — only groups clearly mentioned"],
-  "location": "best guess at location from the data, or 'Not specified'",
+  "location": "best guess at location from the data. ${locationHint ? `IMPORTANT: The volunteer manually specified the location as '${locationHint}'. Use this as the exact location unless the data strongly contradicts it.` : "If not found, output 'Not specified'"}",
   "estimatedPeopleAffected": <integer number, estimate from the data>,
   "categories": ["Food Security", "Healthcare", "Water & Sanitation", "Shelter", "Education", "Vulnerable Groups", "General Aid" — pick all that apply],
   "actionRecommendations": ["specific action 1 for the NGO", "action 2", "...up to 4 actions"],
@@ -42,7 +42,7 @@ ${rawText.substring(0, 8000)}
 Return ONLY valid JSON. No explanation, no markdown code blocks.
 `;
 
-async function analyzeWithGemini(rawText: string, fileType: string, imageBase64?: string) {
+async function analyzeWithGemini(rawText: string, fileType: string, imageBase64?: string, locationHint?: string) {
   const parts: any[] = [];
 
   if (imageBase64) {
@@ -57,10 +57,10 @@ Your task:
 1. First, carefully read and extract ALL visible text from the image (even if handwritten or partially blurry)
 2. Then analyze that extracted content as community field data
 
-${PROMPT_TEMPLATE("(Extract from image above)", fileType)}`
+${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
     });
   } else {
-    parts.push({ text: PROMPT_TEMPLATE(rawText, fileType) });
+    parts.push({ text: PROMPT_TEMPLATE(rawText, fileType, locationHint) });
   }
 
   const response = await fetch(GEMINI_URL, {
@@ -88,7 +88,7 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType)}`
 }
 
 // Fallback local analysis if Gemini fails
-function localAnalyze(rawText: string, fileType: string) {
+function localAnalyze(rawText: string, fileType: string, locationHint?: string) {
   const lower = rawText.toLowerCase();
   const lines = rawText.split(/[\n,;|]+/).map(l => l.trim()).filter(l => l.length > 5);
 
@@ -124,13 +124,15 @@ function localAnalyze(rawText: string, fileType: string) {
   if (lower.match(/woman|women|female/)) groups.push("Women");
   if (groups.length === 0) groups.push("General population");
 
-  let location = "Not specified";
-  ["at ", "in ", "near ", "location:", "area:"].forEach(pat => {
-    const idx = lower.indexOf(pat);
-    if (idx !== -1 && location === "Not specified") {
-      location = rawText.substring(idx + pat.length, idx + pat.length + 40).split(/[,\n]/)[0].trim();
-    }
-  });
+  let location = locationHint || "Not specified";
+  if (!locationHint) {
+    ["at ", "in ", "near ", "location:", "area:"].forEach(pat => {
+      const idx = lower.indexOf(pat);
+      if (idx !== -1 && location === "Not specified") {
+        location = rawText.substring(idx + pat.length, idx + pat.length + 40).split(/[,\n]/)[0].trim();
+      }
+    });
+  }
 
   return {
     summary: `Field data collected via ${fileType}. ${lines.length} data points spanning ${categories.join(", ")}. Approximately ${people} individuals identified as potentially affected.`,
@@ -157,7 +159,7 @@ function localAnalyze(rawText: string, fileType: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { rawText, fileType, volunteerName, ngoId, imageBase64 } = await req.json();
+    const { rawText, fileType, volunteerName, ngoId, imageBase64, locationHint } = await req.json();
 
     if (!rawText?.trim() && !imageBase64) {
       return NextResponse.json({ error: "No content to analyze." }, { status: 400 });
@@ -166,13 +168,13 @@ export async function POST(req: NextRequest) {
     let result;
     if (GEMINI_API_KEY) {
       try {
-        result = await analyzeWithGemini(rawText || "", fileType || "text", imageBase64);
+        result = await analyzeWithGemini(rawText || "", fileType || "text", imageBase64, locationHint);
       } catch (aiErr) {
         console.warn("Gemini failed, falling back to local:", aiErr);
-        result = localAnalyze(rawText || "", fileType || "text");
+        result = localAnalyze(rawText || "", fileType || "text", locationHint);
       }
     } else {
-      result = localAnalyze(rawText || "", fileType || "text");
+      result = localAnalyze(rawText || "", fileType || "text", locationHint);
     }
 
     return NextResponse.json({

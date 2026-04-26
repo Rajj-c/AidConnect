@@ -112,6 +112,7 @@ export default function UploadReportPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing]   = useState(false);
+  const [manualLocation, setManualLocation] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -198,6 +199,7 @@ export default function UploadReportPage() {
           volunteerName: user?.displayName || "Volunteer",
           ngoId: myNgoId,
           imageBase64: imageBase64 || undefined,
+          locationHint: manualLocation.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -356,24 +358,39 @@ export default function UploadReportPage() {
             </>
           )}
 
-          <input
-            ref={fileRef}
-            type="file"
-            accept={ALL_ACCEPT}
-            onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
-            className="hidden"
-          />
+          <div className="space-y-4">
+            <input
+              ref={fileRef}
+              type="file"
+              accept={ALL_ACCEPT}
+              onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ""; }}
+              className="hidden"
+            />
 
-          <Button
-            onClick={handleAnalyze}
-            disabled={!canAnalyse}
-            className="w-full gap-2 h-11 text-base font-semibold"
-          >
+            <div>
+              <p className="text-sm font-semibold mb-1">Location <span className="text-muted-foreground font-normal">(Optional)</span></p>
+              <Input
+                placeholder="e.g., Jubilee Hills, Hyderabad"
+                value={manualLocation}
+                onChange={e => setManualLocation(e.target.value)}
+                className="bg-slate-50 border-slate-200"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                <Lightbulb className="h-3 w-3" /> Helps AI map the report accurately if not clearly stated in the text.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleAnalyze}
+              disabled={!canAnalyse}
+              className="w-full gap-2 h-11 text-base font-semibold mt-2"
+            >
             {analyzing
               ? <><Loader2 className="h-5 w-5 animate-spin" /> Analysing with AI...</>
               : <><Sparkles className="h-5 w-5" /> Analyse with Gemini AI</>
             }
-          </Button>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
