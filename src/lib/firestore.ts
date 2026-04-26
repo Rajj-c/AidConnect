@@ -551,13 +551,24 @@ export async function verifyTask(taskId: string, volunteerId: string) {
 }
 
 /** NGO manually marks a task as Completed (even if volunteer hasn't reported yet) */
-export async function markTaskCompleted(taskId: string, volunteerId?: string) {
+export async function markTaskCompleted(taskId: string, volunteerId?: string, rating?: number) {
   await updateDoc(doc(db!, "tasks", taskId), { status: "Completed", completedByNGO: true });
   if (volunteerId) {
     const volRef = doc(db!, "volunteers", volunteerId);
     const volSnap = await getDoc(volRef);
     if (volSnap.exists()) {
-      await updateDoc(volRef, { status: "Available" });
+      const data = volSnap.data();
+      const updates: Record<string, unknown> = { status: "Available" };
+      if (rating !== undefined) {
+        const oldRating: number = data.rating ?? 3;
+        const oldCount: number = data.ratingsCount ?? 1;
+        const newCount = oldCount + 1;
+        const newRating = Math.round(((oldRating * oldCount) + rating) / newCount * 10) / 10;
+        updates.rating = newRating;
+        updates.ratingsCount = newCount;
+        updates.lastRating = rating;
+      }
+      await updateDoc(volRef, updates);
     }
   }
 }

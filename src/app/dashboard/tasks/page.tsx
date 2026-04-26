@@ -18,6 +18,7 @@ import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 import { TaskChatDialog } from "@/components/TaskChatDialog";
 import { FieldEntriesDialog } from "@/components/FieldEntriesDialog";
+import { MarkCompleteDialog } from "@/components/MarkCompleteDialog";
 import { formatDistanceToNow } from "date-fns";
 
 const TASK_TYPE_ICON: Record<TaskType, React.ReactNode> = {
@@ -53,6 +54,7 @@ export default function NGOTasksPage() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [completingTask, setCompletingTask] = useState<TaskDoc | null>(null);
   const [chatTask, setChatTask] = useState<TaskDoc | null>(null);
   const [entriesTask, setEntriesTask] = useState<TaskDoc | null>(null);
 
@@ -76,17 +78,23 @@ export default function NGOTasksPage() {
     }
   }
 
-  async function handleMarkCompleted(task: TaskDoc) {
+  function handleMarkCompleted(task: TaskDoc) {
     if (!task.id) return;
-    if (!window.confirm(`Mark "${task.title}" as completed? This will free up the assigned volunteer.`)) return;
+    setCompletingTask(task);
+  }
+
+  async function doMarkCompleted(rating: number, _comment: string) {
+    const task = completingTask;
+    if (!task?.id) return;
     setCompletingId(task.id);
     try {
-      await markTaskCompleted(task.id, task.assignedVolunteerId);
+      await markTaskCompleted(task.id, task.assignedVolunteerId, rating);
       toast({ title: "✅ Marked as Completed", description: `"${task.title}" has been marked complete. You can now verify it.` });
     } catch {
       toast({ title: "Error", description: "Failed to mark task as completed.", variant: "destructive" });
     } finally {
       setCompletingId(null);
+      setCompletingTask(null);
     }
   }
 
@@ -331,6 +339,14 @@ export default function NGOTasksPage() {
       {entriesTask && (
         <FieldEntriesDialog task={entriesTask} open={!!entriesTask} onOpenChange={open => !open && setEntriesTask(null)} />
       )}
+      {/* Mark Complete + Rating Dialog */}
+      <MarkCompleteDialog
+        open={!!completingTask}
+        onOpenChange={open => !open && setCompletingTask(null)}
+        taskTitle={completingTask?.title ?? ""}
+        volunteerName={completingTask?.assignedVolunteerName}
+        onConfirm={doMarkCompleted}
+      />
     </div>
   );
 }
