@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
-  subscribeToTasksByNGO, verifyTask, TaskDoc, TaskType,
+  subscribeToTasksByNGO, verifyTask, markTaskCompleted, deleteTask, TaskDoc, TaskType,
 } from "@/lib/firestore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ClipboardList, Plus, MapPin, Clock, Users, Package, Truck,
-  HeartHandshake, CheckCircle2, Loader2, MessageCircle, Eye
+  HeartHandshake, CheckCircle2, Loader2, MessageCircle, Eye, Trash2, CheckCheck
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
@@ -51,6 +51,8 @@ export default function NGOTasksPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<TaskDoc[]>([]);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [chatTask, setChatTask] = useState<TaskDoc | null>(null);
   const [entriesTask, setEntriesTask] = useState<TaskDoc | null>(null);
 
@@ -71,6 +73,34 @@ export default function NGOTasksPage() {
       toast({ title: "Error", description: "Failed to verify task.", variant: "destructive" });
     } finally {
       setVerifyingId(null);
+    }
+  }
+
+  async function handleMarkCompleted(task: TaskDoc) {
+    if (!task.id) return;
+    if (!window.confirm(`Mark "${task.title}" as completed? This will free up the assigned volunteer.`)) return;
+    setCompletingId(task.id);
+    try {
+      await markTaskCompleted(task.id, task.assignedVolunteerId);
+      toast({ title: "✅ Marked as Completed", description: `"${task.title}" has been marked complete. You can now verify it.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to mark task as completed.", variant: "destructive" });
+    } finally {
+      setCompletingId(null);
+    }
+  }
+
+  async function handleDelete(task: TaskDoc) {
+    if (!task.id) return;
+    if (!window.confirm(`Delete "${task.title}"? This action cannot be undone.`)) return;
+    setDeletingId(task.id);
+    try {
+      await deleteTask(task.id, task.assignedVolunteerId);
+      toast({ title: "🗑️ Task Deleted", description: `"${task.title}" has been permanently deleted.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete task.", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -158,7 +188,7 @@ export default function NGOTasksPage() {
           )}
 
           {/* Action row */}
-          <div className="flex items-center gap-2 pt-2 border-t">
+          <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
             {/* Chat button */}
             {task.assignedVolunteerId && (
               <Button
@@ -181,11 +211,27 @@ export default function NGOTasksPage() {
               </Button>
             )}
 
+            {/* NGO can manually mark as completed (if not already done/verified) */}
+            {task.status !== "Completed" && task.status !== "Verified" && (
+              <Button
+                size="sm" variant="outline"
+                className="gap-1.5 text-xs h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={() => handleMarkCompleted(task)}
+                disabled={completingId === task.id}
+              >
+                {completingId === task.id
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <CheckCheck className="h-3.5 w-3.5" />
+                }
+                Mark Complete
+              </Button>
+            )}
+
             {/* Verify when completed */}
             {task.status === "Completed" && (
               <Button
                 size="sm"
-                className="ml-auto gap-1.5 text-xs h-8 bg-green-600 hover:bg-green-700"
+                className="gap-1.5 text-xs h-8 bg-green-600 hover:bg-green-700"
                 onClick={() => handleVerify(task)}
                 disabled={verifyingId === task.id}
               >
@@ -196,6 +242,20 @@ export default function NGOTasksPage() {
                 Verify
               </Button>
             )}
+
+            {/* Delete task — always available */}
+            <Button
+              size="sm" variant="outline"
+              className="gap-1.5 text-xs h-8 ml-auto border-red-200 text-red-500 hover:bg-red-50"
+              onClick={() => handleDelete(task)}
+              disabled={deletingId === task.id}
+            >
+              {deletingId === task.id
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5" />
+              }
+              Delete
+            </Button>
           </div>
         </CardContent>
       </Card>

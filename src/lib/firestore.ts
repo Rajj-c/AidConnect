@@ -7,6 +7,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   limit,
@@ -546,6 +547,30 @@ export async function verifyTask(taskId: string, volunteerId: string) {
       tasksCompleted: increment(1),
       status: "Available", // Free up the volunteer
     });
+  }
+}
+
+/** NGO manually marks a task as Completed (even if volunteer hasn't reported yet) */
+export async function markTaskCompleted(taskId: string, volunteerId?: string) {
+  await updateDoc(doc(db!, "tasks", taskId), { status: "Completed", completedByNGO: true });
+  if (volunteerId) {
+    const volRef = doc(db!, "volunteers", volunteerId);
+    const volSnap = await getDoc(volRef);
+    if (volSnap.exists()) {
+      await updateDoc(volRef, { status: "Available" });
+    }
+  }
+}
+
+/** NGO permanently deletes a task and frees up any assigned volunteer */
+export async function deleteTask(taskId: string, volunteerId?: string) {
+  await deleteDoc(doc(db!, "tasks", taskId));
+  if (volunteerId) {
+    const volRef = doc(db!, "volunteers", volunteerId);
+    const volSnap = await getDoc(volRef);
+    if (volSnap.exists() && volSnap.data()?.status === "Busy") {
+      await updateDoc(volRef, { status: "Available" });
+    }
   }
 }
 
