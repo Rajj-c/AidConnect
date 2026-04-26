@@ -18,13 +18,7 @@ URGENT TASK:
 VOLUNTEER POOL (${volunteers.length} volunteers):
 ${volunteers.map((v, i) => `${i + 1}. ${v.name} | Skills: ${(v.skills || []).join(", ") || "General"} | Status: ${v.status} | Rating: ${v.rating || 3}/5 | Tasks done: ${v.tasksCompleted || 0}`).join("\n")}
 
-Rank the top 3 volunteers for this task. Return ONLY a JSON array:
-[
-  {"rank": 1, "volunteerIndex": <1-based index>, "reasons": ["reason1", "reason2"], "dispatchMessage": "Personal 1-sentence message to this volunteer"},
-  {"rank": 2, "volunteerIndex": <index>, "reasons": ["reason1"], "dispatchMessage": "..."},
-  {"rank": 3, "volunteerIndex": <index>, "reasons": ["reason1"], "dispatchMessage": "..."}
-]
-Raw JSON only, no markdown.`;
+    Rank the top 3 volunteers for this task. Return ONLY a JSON array.`;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res = await fetch(GEMINI_URL, {
@@ -32,7 +26,24 @@ Raw JSON only, no markdown.`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 800, responseMimeType: "application/json" }
+        generationConfig: { 
+          temperature: 0.1, 
+          maxOutputTokens: 800, 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                rank: { type: "INTEGER" },
+                volunteerIndex: { type: "INTEGER", description: "1-based index of the volunteer in the provided list" },
+                reasons: { type: "ARRAY", items: { type: "STRING" } },
+                dispatchMessage: { type: "STRING", description: "Personal 1-sentence message to this volunteer" }
+              },
+              required: ["rank", "volunteerIndex", "reasons", "dispatchMessage"]
+            }
+          }
+        }
       })
     });
 

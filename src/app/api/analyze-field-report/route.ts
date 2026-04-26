@@ -10,23 +10,10 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemi
 const PROMPT_TEMPLATE = (rawText: string, fileType: string, locationHint?: string) => `
 You are an expert community data analyst for an NGO platform called AidConnect. A volunteer has uploaded field data collected from the community (surveys, WhatsApp messages, Google Forms, interviews, Excel data, etc.).
 
-Analyze this data and return a structured JSON response with EXACTLY this format (no extra keys, no markdown, raw JSON only):
-{
-  "summary": "A 2-3 sentence plain-language summary of what this data tells us about the community situation",
-  "keyFindings": ["finding 1", "finding 2", "finding 3", "...up to 6 key findings extracted from the data"],
-  "affectedGroups": ["Children", "Elderly", "Women", "etc — only groups clearly mentioned"],
-  "location": "best guess at location from the data. ${locationHint ? `IMPORTANT: The volunteer manually specified the location as '${locationHint}'. Use this as the exact location unless the data strongly contradicts it.` : "If not found, output 'Not specified'"}",
-  "estimatedPeopleAffected": <integer number, estimate from the data>,
-  "categories": ["Food Security", "Healthcare", "Water & Sanitation", "Shelter", "Education", "Vulnerable Groups", "General Aid" — pick all that apply],
-  "actionRecommendations": ["specific action 1 for the NGO", "action 2", "...up to 4 actions"],
-  "severity": {
-    "level": "<one of: Critical, High, Medium, Low>",
-    "score": <integer 0-100>,
-    "reasoning": "1-2 sentences explaining why this severity level was chosen"
-  }
-}
+Analyze this data and return a structured response.
 
 Rules:
+- ${locationHint ? `IMPORTANT: The volunteer manually specified the location as '${locationHint}'. Use this as the exact location for 'location' unless the data strongly contradicts it.` : "If location is not found in the data, output 'Not specified'"}
 - severity score: 80-100 = Critical (deaths, epidemics, starvation), 50-79 = High (urgent medical/food needs), 25-49 = Medium (clear needs, not life-threatening), 0-24 = Low (general community requests)
 - keyFindings must be SPECIFIC observations from the actual data, not generic statements
 - If numbers of people are mentioned, use them for estimatedPeopleAffected
@@ -69,7 +56,33 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: "application/json" }
+        generationConfig: { 
+          temperature: 0.2, 
+          maxOutputTokens: 2048, 
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              summary: { type: "STRING" },
+              keyFindings: { type: "ARRAY", items: { type: "STRING" } },
+              affectedGroups: { type: "ARRAY", items: { type: "STRING" } },
+              location: { type: "STRING" },
+              estimatedPeopleAffected: { type: "INTEGER" },
+              categories: { type: "ARRAY", items: { type: "STRING" } },
+              actionRecommendations: { type: "ARRAY", items: { type: "STRING" } },
+              severity: {
+                type: "OBJECT",
+                properties: {
+                  level: { type: "STRING", enum: ["Critical", "High", "Medium", "Low"] },
+                  score: { type: "INTEGER" },
+                  reasoning: { type: "STRING" }
+                },
+                required: ["level", "score", "reasoning"]
+              }
+            },
+            required: ["summary", "keyFindings", "affectedGroups", "location", "estimatedPeopleAffected", "categories", "actionRecommendations", "severity"]
+          }
+        }
       })
     });
 
