@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
 
 async function geminiDispatch(task: any, volunteers: any[]): Promise<any[]> {
@@ -49,10 +49,20 @@ ${volunteers.map((v, i) => `${i + 1}. ${v.name} | Skills: ${(v.skills || []).joi
 
     if (res.ok) {
       const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      
+      if (!text) {
+        console.error("Gemini returned empty text response:", JSON.stringify(data, null, 2));
+        if (attempt === 3) throw new Error("Gemini returned an empty response");
+        await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+        continue;
+      }
+      
       try {
-        return JSON.parse(text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        return JSON.parse(text);
       } catch (parseErr) {
+        console.error("Gemini JSON parse error. Raw text:", text);
         if (attempt === 3) throw parseErr;
       }
     } else {

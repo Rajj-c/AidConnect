@@ -5,7 +5,7 @@ export const config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
 const PROMPT_TEMPLATE = (rawText: string, fileType: string, locationHint?: string) => `
 You are an expert community data analyst for an NGO platform called AidConnect. A volunteer has uploaded field data collected from the community (surveys, WhatsApp messages, Google Forms, interviews, Excel data, etc.).
@@ -88,11 +88,20 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
 
     if (response.ok) {
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const text = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+      if (!text) {
+        console.error("Gemini returned empty text response:", JSON.stringify(data, null, 2));
+        if (attempt === 3) throw new Error("Gemini returned an empty response");
+        await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+        continue;
+      }
+
       try {
-        return JSON.parse(cleaned);
+        return JSON.parse(text);
       } catch (parseErr) {
+        console.error("Gemini JSON parse error. Raw text:", text);
         if (attempt === 3) throw parseErr;
       }
     } else {
