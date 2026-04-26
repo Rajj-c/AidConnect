@@ -24,6 +24,7 @@ const adminNavItems = [
 
 const ngoNavItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, tooltip: "Operations Overview" },
+  { href: "/dashboard/needs-board", label: "Needs Board", icon: Radio, tooltip: "Live Community Needs + AI Dispatch" },
   { href: "/dashboard/tasks", label: "Tasks", icon: ClipboardList, tooltip: "Manage Tasks" },
   { href: "/dashboard/tasks/new", label: "Post Task", icon: Plus, tooltip: "Create New Task" },
   { href: "/dashboard/leads", label: "Community Leads", icon: Inbox, tooltip: "Volunteer Field Reports" },

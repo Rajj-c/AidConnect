@@ -22,6 +22,7 @@ const NGO_ROUTES = [
   "/dashboard/analytics", "/dashboard/settings",
   "/dashboard/my-volunteers", "/dashboard/leads",
   "/dashboard/field-reports", "/dashboard/reports",
+  "/dashboard/needs-board",
 ];
 const VOLUNTEER_ROUTES = [
   "/dashboard/missions", "/dashboard/available-tasks",
