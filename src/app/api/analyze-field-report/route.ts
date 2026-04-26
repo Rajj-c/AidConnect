@@ -63,28 +63,34 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
     parts.push({ text: PROMPT_TEMPLATE(rawText, fileType, locationHint) });
   }
 
-  const response = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 2048,
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch (parseErr) {
+        if (attempt === 3) throw parseErr;
       }
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.status}`);
+    } else {
+      if (response.status === 429) {
+        if (attempt === 3) throw new Error(`Gemini rate limit exceeded: ${response.status}`);
+        await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+        continue;
+      }
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
   }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-  // Clean and parse JSON
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(cleaned);
 }
 
 // Fallback local analysis if Gemini fails

@@ -97,18 +97,34 @@ Rank the top 3 volunteers for this task. Return ONLY a JSON array:
 ]
 Raw JSON only, no markdown.`;
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
-    })
-  });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+      })
+    });
 
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-  return JSON.parse(text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+    if (res.ok) {
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+      try {
+        return JSON.parse(text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      } catch (parseErr) {
+        if (attempt === 3) throw parseErr;
+      }
+    } else {
+      if (res.status === 429) {
+        if (attempt === 3) throw new Error(`Gemini rate limit exceeded: ${res.status}`);
+        await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+        continue;
+      }
+      throw new Error(`Gemini API error: ${res.status}`);
+    }
+  }
+  return [];
 }
 
 function localDispatch(task: any, volunteers: any[]) {
