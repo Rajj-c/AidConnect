@@ -897,3 +897,82 @@ export async function convertNeedReportToTask(
   await updateNeedReportStatus(report.id!, "TaskCreated");
   return taskRef;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Field Reports (Volunteer Uploaded Data → AI Analyzed)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type ReportSeverity = "Critical" | "High" | "Medium" | "Low";
+
+export interface FieldReport {
+  id?: string;
+  ngoId: string;
+  volunteerId: string;
+  volunteerName: string;
+  fileName: string;
+  fileType: string; // "text" | "csv" | "image" | "whatsapp" | "other"
+  rawTextPreview: string;
+  // AI-structured output
+  summary: string;
+  keyFindings: string[];
+  affectedGroups: string[];
+  location: string;
+  estimatedPeopleAffected: number;
+  categories: string[];
+  actionRecommendations: string[];
+  severity: {
+    level: ReportSeverity;
+    score: number;
+    reasoning: string;
+  };
+  status: "New" | "Reviewed" | "ActionTaken";
+  createdAt: Timestamp | null;
+}
+
+const fieldReportsRef = () => collection(db!, "fieldReports");
+
+export async function submitFieldReport(
+  report: Omit<FieldReport, "id" | "createdAt">
+) {
+  return addDoc(fieldReportsRef(), {
+    ...report,
+    status: "New",
+    createdAt: serverTimestamp(),
+  });
+}
+
+export function subscribeToFieldReportsByNGO(
+  ngoId: string,
+  callback: (reports: FieldReport[]) => void
+) {
+  const q = query(fieldReportsRef(), where("ngoId", "==", ngoId));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FieldReport));
+    data.sort((a, b) => {
+      const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return tB - tA;
+    });
+    callback(data);
+  });
+}
+
+export function subscribeToMyFieldReports(
+  volunteerId: string,
+  callback: (reports: FieldReport[]) => void
+) {
+  const q = query(fieldReportsRef(), where("volunteerId", "==", volunteerId));
+  return onSnapshot(q, (snap) => {
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FieldReport));
+    data.sort((a, b) => {
+      const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return tB - tA;
+    });
+    callback(data);
+  });
+}
+
+export async function updateFieldReportStatus(id: string, status: FieldReport["status"]) {
+  return updateDoc(doc(db!, "fieldReports", id), { status });
+}

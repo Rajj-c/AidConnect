@@ -11,7 +11,7 @@ import { Zap, X } from "lucide-react";
 import {
   LayoutDashboard, FileText, Target, Users, BarChart3,
   Settings, TrendingUp, Building2, DatabaseZap, ShieldAlert, Flame, ScanLine,
-  ClipboardList, Plus, Search, Inbox, Radio
+  ClipboardList, Plus, Search, Inbox, Radio, UploadCloud, Brain
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -27,6 +27,7 @@ const ngoNavItems = [
   { href: "/dashboard/tasks", label: "Tasks", icon: ClipboardList, tooltip: "Manage Tasks" },
   { href: "/dashboard/tasks/new", label: "Post Task", icon: Plus, tooltip: "Create New Task" },
   { href: "/dashboard/leads", label: "Community Leads", icon: Inbox, tooltip: "Volunteer Field Reports" },
+  { href: "/dashboard/field-reports", label: "AI Field Reports", icon: Brain, tooltip: "AI-Analyzed Volunteer Data" },
   { href: "/dashboard/my-volunteers", label: "My Volunteers", icon: Users, tooltip: "Your Team" },
   { href: "/dashboard/heatmap", label: "Urgency Heatmap", icon: Flame, tooltip: "Live Heatmap" },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3, tooltip: "Impact Analytics" },
@@ -35,6 +36,7 @@ const ngoNavItems = [
 const volunteerNavItems = [
   { href: "/dashboard/missions", label: "My Missions", icon: Target, tooltip: "Active Tasks" },
   { href: "/dashboard/available-tasks", label: "Available Tasks", icon: Search, tooltip: "Browse Open Tasks" },
+  { href: "/dashboard/upload-report", label: "Upload Report", icon: UploadCloud, tooltip: "Upload Field Data for AI Analysis" },
   { href: "/dashboard/report", label: "Field Report", icon: Radio, tooltip: "Report Donation or Need" },
   { href: "/dashboard/heatmap", label: "Heatmap", icon: Flame, tooltip: "Urgency Heatmap" },
 ];
