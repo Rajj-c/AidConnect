@@ -243,7 +243,10 @@ export default function NeedsBoardPage() {
                   <div className={`h-1.5 w-full ${sev.bar}`} />
                   <CardContent className="p-5">
                     {/* Top row */}
-                    <div className="flex items-start justify-between gap-3">
+                    <div 
+                      className="flex items-start justify-between gap-3 cursor-pointer group hover:bg-slate-50/50 -m-5 p-5 transition-colors"
+                      onClick={() => setExpandedId(isExpanded ? null : report.id!)}
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1.5">
                           {sev.pulse && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />}
@@ -256,7 +259,9 @@ export default function NeedsBoardPage() {
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">{report.fileType}</Badge>
                         </div>
 
-                        <p className="text-sm font-bold text-slate-800 mb-0.5">{report.summary?.substring(0, 100)}...</p>
+                        <p className={`text-sm text-slate-800 mb-0.5 leading-relaxed ${isExpanded ? "font-normal mt-3" : "font-bold"}`}>
+                          {isExpanded ? report.summary : `${report.summary?.substring(0, 100)}...`}
+                        </p>
 
                         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
                           <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{report.location}</span>
@@ -272,7 +277,11 @@ export default function NeedsBoardPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => recs.length > 0 ? setExpandedId(isExpanded ? null : report.id!) : handleAIDispatch(report)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (recs.length > 0) setExpandedId(isExpanded ? null : report.id!);
+                            else handleAIDispatch(report);
+                          }}
                           disabled={isDispatching}
                           className="gap-1.5 text-xs h-8 bg-primary hover:bg-primary/90"
                         >
@@ -300,7 +309,15 @@ export default function NeedsBoardPage() {
 
                     {/* Expanded: full details + dispatch results */}
                     {isExpanded && (
-                      <div className="mt-5 space-y-4 border-t pt-4">
+                      <div className="mt-5 space-y-5 border-t pt-5">
+                        
+                        {/* Raw Field Data Preview */}
+                        {report.rawTextPreview && (
+                          <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Raw Field Data ({report.fileType})</p>
+                            <p className="text-xs text-slate-600 font-mono whitespace-pre-wrap">{report.rawTextPreview}</p>
+                          </div>
+                        )}
                         {/* Key findings */}
                         {report.keyFindings?.length > 0 && (
                           <div>
