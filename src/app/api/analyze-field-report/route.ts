@@ -69,7 +69,7 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: "application/json" }
       })
     });
 

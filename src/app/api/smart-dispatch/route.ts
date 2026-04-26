@@ -32,7 +32,7 @@ Raw JSON only, no markdown.`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 800, responseMimeType: "application/json" }
       })
     });
 
