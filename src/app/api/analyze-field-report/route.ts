@@ -93,84 +93,6 @@ ${PROMPT_TEMPLATE("(Extract from image above)", fileType, locationHint)}`
   }
 }
 
-// Fallback local analysis if Gemini fails
-function localAnalyze(rawText: string, fileType: string, locationHint?: string) {
-  const lower = rawText.toLowerCase();
-  const lines = rawText.split(/[\n,;|]+/).map(l => l.trim()).filter(l => l.length > 5);
-
-  const criticalKw = ["death", "died", "dead", "critical", "emergency", "sos", "severe", "collapse", "outbreak", "epidemic", "starvation", "flood", "fire", "medical", "unconscious"];
-  const highKw = ["sick", "ill", "injured", "homeless", "hunger", "no water", "no food", "danger", "unsafe", "malnourished"];
-  const medKw = ["need", "require", "help", "lack", "shortage", "poor", "vulnerable"];
-
-  let score = 0;
-  const matched: string[] = [];
-  criticalKw.forEach(kw => { if (lower.includes(kw)) { score += 20; matched.push(kw); } });
-  highKw.forEach(kw => { if (lower.includes(kw)) { score += 10; matched.push(kw); } });
-  medKw.forEach(kw => { if (lower.includes(kw)) { score += 5; matched.push(kw); } });
-  score = Math.min(score, 100);
-
-  const level = score >= 60 ? "Critical" : score >= 35 ? "High" : score >= 15 ? "Medium" : "Low";
-
-  const categories: string[] = [];
-  if (lower.match(/food|hunger|meal|ration|eat/)) categories.push("Food Security");
-  if (lower.match(/health|medical|sick|doctor|hospital|medicine/)) categories.push("Healthcare");
-  if (lower.match(/water|drinking|sanitation|toilet/)) categories.push("Water & Sanitation");
-  if (lower.match(/shelter|home|house|tent|homeless/)) categories.push("Shelter");
-  if (lower.match(/school|education|student|children|kids/)) categories.push("Education");
-  if (categories.length === 0) categories.push("General Aid");
-
-  const numMatches = rawText.match(/\b(\d+)\s*(people|persons|families|households|individuals|beneficiaries|children|adults)/gi);
-  let people = 0;
-  numMatches?.forEach(m => { people += parseInt(m.match(/\d+/)?.[0] || "0"); });
-  if (people === 0) people = Math.max(1, lines.length * 2);
-
-  const groups: string[] = [];
-  if (lower.match(/child|kid/)) groups.push("Children");
-  if (lower.match(/elder|old/)) groups.push("Elderly");
-  if (lower.match(/woman|women|female/)) groups.push("Women");
-  if (groups.length === 0) groups.push("General population");
-
-  let location = locationHint || "Not specified";
-  if (!locationHint) {
-    const locMatch = rawText.match(/(?:location|area|village|city|town|district|near|at)\s*[:\-]?\s*([A-Z][a-zA-Z\s,]{2,30})/i);
-    if (locMatch && locMatch[1]) {
-      location = locMatch[1].trim();
-    } else {
-      // Fallback: look for common patterns but exclude common false positives
-      ["near ", "location: ", "area: "].forEach(pat => {
-        const idx = lower.indexOf(pat);
-        if (idx !== -1 && location === "Not specified") {
-          const possible = rawText.substring(idx + pat.length, idx + pat.length + 30).split(/[.,\n]/)[0].trim();
-          if (possible.length > 2 && !possible.toLowerCase().match(/^(the|this|a|an|night|morning|evening|today|tomorrow|yesterday)$/)) {
-            location = possible;
-          }
-        }
-      });
-    }
-  }
-
-  return {
-    summary: `Field data collected via ${fileType}. ${lines.length} data points spanning ${categories.join(", ")}. Approximately ${people} individuals identified as potentially affected.`,
-    keyFindings: lines.slice(0, 5).map(l => l.charAt(0).toUpperCase() + l.slice(1)),
-    affectedGroups: groups,
-    location,
-    estimatedPeopleAffected: people,
-    categories,
-    actionRecommendations: [
-      categories.includes("Food Security") ? "Deploy food distribution team" : null,
-      categories.includes("Healthcare") ? "Coordinate with medical volunteers" : null,
-      categories.includes("Water & Sanitation") ? "Arrange water supply" : null,
-      "Review full report and assign appropriate volunteer team",
-    ].filter(Boolean) as string[],
-    severity: {
-      level,
-      score,
-      reasoning: matched.length > 0
-        ? `Detected concern indicators: ${matched.slice(0, 4).join(", ")}.`
-        : "No specific distress indicators. Routine community data."
-    }
-  };
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -180,19 +102,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No content to analyze." }, { status: 400 });
     }
 
-    let result;
-    let usedGemini = false;
-    if (GEMINI_API_KEY) {
-      try {
-        result = await analyzeWithGemini(rawText || "", fileType || "text", imageBase64, locationHint);
-        usedGemini = true;
-      } catch (aiErr) {
-        console.warn("Gemini failed, falling back to local:", aiErr);
-        result = localAnalyze(rawText || "", fileType || "text", locationHint);
-      }
-    } else {
-      result = localAnalyze(rawText || "", fileType || "text", locationHint);
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({ error: "GEMINI_API_KEY is not configured on the server." }, { status: 500 });
     }
+
+    const result = await analyzeWithGemini(rawText || "", fileType || "text", imageBase64, locationHint);
 
     // Attempt to automatically geocode the extracted location if the user didn't provide a map pin
     if (result.location && result.location !== "Not specified") {
@@ -218,7 +132,7 @@ export async function POST(req: NextRequest) {
       volunteerName,
       ngoId,
       rawTextPreview: (rawText || "").substring(0, 500),
-      aiPowered: usedGemini,
+      aiPowered: true,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
