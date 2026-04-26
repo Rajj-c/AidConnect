@@ -126,12 +126,21 @@ function localAnalyze(rawText: string, fileType: string, locationHint?: string) 
 
   let location = locationHint || "Not specified";
   if (!locationHint) {
-    ["at ", "in ", "near ", "location:", "area:"].forEach(pat => {
-      const idx = lower.indexOf(pat);
-      if (idx !== -1 && location === "Not specified") {
-        location = rawText.substring(idx + pat.length, idx + pat.length + 40).split(/[,\n]/)[0].trim();
-      }
-    });
+    const locMatch = rawText.match(/(?:location|area|village|city|town|district|near|at)\s*[:\-]?\s*([A-Z][a-zA-Z\s,]{2,30})/i);
+    if (locMatch && locMatch[1]) {
+      location = locMatch[1].trim();
+    } else {
+      // Fallback: look for common patterns but exclude common false positives
+      ["near ", "location: ", "area: "].forEach(pat => {
+        const idx = lower.indexOf(pat);
+        if (idx !== -1 && location === "Not specified") {
+          const possible = rawText.substring(idx + pat.length, idx + pat.length + 30).split(/[.,\n]/)[0].trim();
+          if (possible.length > 2 && !possible.toLowerCase().match(/^(the|this|a|an|night|morning|evening|today|tomorrow|yesterday)$/)) {
+            location = possible;
+          }
+        }
+      });
+    }
   }
 
   return {
@@ -166,9 +175,11 @@ export async function POST(req: NextRequest) {
     }
 
     let result;
+    let usedGemini = false;
     if (GEMINI_API_KEY) {
       try {
         result = await analyzeWithGemini(rawText || "", fileType || "text", imageBase64, locationHint);
+        usedGemini = true;
       } catch (aiErr) {
         console.warn("Gemini failed, falling back to local:", aiErr);
         result = localAnalyze(rawText || "", fileType || "text", locationHint);
@@ -183,7 +194,7 @@ export async function POST(req: NextRequest) {
       volunteerName,
       ngoId,
       rawTextPreview: (rawText || "").substring(0, 500),
-      aiPowered: !!GEMINI_API_KEY,
+      aiPowered: usedGemini,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
