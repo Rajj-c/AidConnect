@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
+import { LocationPicker, PickedLocation } from "@/components/LocationPicker";
 import {
   Upload, FileText, Brain, AlertTriangle, CheckCircle2, Clock,
   MapPin, Users, Lightbulb, FileSpreadsheet, MessageSquare,
@@ -112,7 +113,7 @@ export default function UploadReportPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing]   = useState(false);
-  const [manualLocation, setManualLocation] = useState("");
+  const [manualLocationData, setManualLocationData] = useState<PickedLocation | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -199,7 +200,7 @@ export default function UploadReportPage() {
           volunteerName: user?.displayName || "Volunteer",
           ngoId: myNgoId,
           imageBase64: imageBase64 || undefined,
-          locationHint: manualLocation.trim() || undefined,
+          locationHint: manualLocationData?.address.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -235,6 +236,7 @@ export default function UploadReportPage() {
         actionRecommendations: result.actionRecommendations || [],
         severity: result.severity || { level: "Low", score: 0, reasoning: "" },
         status: "New",
+        ...(manualLocationData?.lat ? { lat: manualLocationData.lat, lng: manualLocationData.lng } : {})
       });
       toast({ title: "📤 Report Submitted!", description: "Your NGO can now view the AI-structured report." });
       setRawText(""); setResult(null); setFileName(""); setImagePreview(null); setImageBase64(null);
@@ -368,15 +370,15 @@ export default function UploadReportPage() {
             />
 
             <div>
-              <p className="text-sm font-semibold mb-1">Location <span className="text-muted-foreground font-normal">(Optional)</span></p>
-              <Input
-                placeholder="e.g., Jubilee Hills, Hyderabad"
-                value={manualLocation}
-                onChange={e => setManualLocation(e.target.value)}
-                className="bg-slate-50 border-slate-200"
-              />
-              <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                <Lightbulb className="h-3 w-3" /> Helps AI map the report accurately if not clearly stated in the text.
+              <div className="bg-white border rounded-xl p-3 shadow-sm">
+                <LocationPicker
+                  label="Precise Location (Optional)"
+                  placeholder="e.g. Jubilee Hills, Hyderabad"
+                  onSelect={loc => setManualLocationData(loc)}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1 px-1">
+                <Lightbulb className="h-3 w-3" /> Pinning the location helps the AI map the report accurately. If left blank, AI will guess from text.
               </p>
             </div>
 

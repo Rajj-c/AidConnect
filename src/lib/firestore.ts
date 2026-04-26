@@ -917,6 +917,8 @@ export interface FieldReport {
   keyFindings: string[];
   affectedGroups: string[];
   location: string;
+  lat?: number;
+  lng?: number;
   estimatedPeopleAffected: number;
   categories: string[];
   actionRecommendations: string[];
