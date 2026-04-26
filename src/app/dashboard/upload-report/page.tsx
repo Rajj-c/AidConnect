@@ -6,6 +6,7 @@ import { submitFieldReport, subscribeToMyFieldReports, FieldReport } from "@/lib
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/hooks/use-toast";
@@ -13,7 +14,7 @@ import {
   Upload, FileText, Brain, AlertTriangle, CheckCircle2, Clock,
   MapPin, Users, Lightbulb, FileSpreadsheet, MessageSquare,
   ChevronDown, ChevronUp, Loader2, UploadCloud, Image as ImageIcon,
-  X, Sparkles
+  X, Sparkles, Edit2, Save
 } from "lucide-react";
 
 const SEVERITY_CONFIG = {
@@ -110,6 +111,7 @@ export default function UploadReportPage() {
   const [myReports, setMyReports] = useState<FieldReport[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isEditing, setIsEditing]   = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -182,7 +184,10 @@ export default function UploadReportPage() {
       return;
     }
     setAnalyzing(true);
-    setResult(null);
+    if (result) {
+        setResult(null);
+        setIsEditing(false);
+      }
     try {
       const res = await fetch("/api/analyze-field-report", {
         method: "POST",
@@ -198,6 +203,7 @@ export default function UploadReportPage() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setResult(data);
+      setIsEditing(false);
       toast({ title: data.aiPowered ? "✨ Gemini AI Analysis Complete" : "✅ Analysis Complete", description: "Report structured successfully." });
     } catch (e: any) {
       toast({ title: "Analysis Failed", description: e.message, variant: "destructive" });
@@ -380,12 +386,23 @@ export default function UploadReportPage() {
                 <Brain className="h-5 w-5 text-primary" /> Step 2 — AI Analysis Results
                 {result.aiPowered && <Badge className="text-[10px] bg-primary/10 text-primary border-none gap-1"><Sparkles className="h-3 w-3" />Gemini AI</Badge>}
               </CardTitle>
-              {result.severity && (
-                <Badge className={`gap-1.5 text-xs border ${SEVERITY_CONFIG[result.severity.level as keyof typeof SEVERITY_CONFIG]?.color || ""}`}>
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {result.severity.level} · {result.severity.score}/100
-                </Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <Button variant="default" size="sm" onClick={() => setIsEditing(false)} className="gap-1 h-7 text-xs bg-green-600 hover:bg-green-700">
+                    <Save className="h-3 w-3" /> Save Edits
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-1 h-7 text-xs">
+                    <Edit2 className="h-3 w-3" /> Edit Data
+                  </Button>
+                )}
+                {result.severity && (
+                  <Badge className={`gap-1.5 text-xs border ${SEVERITY_CONFIG[result.severity.level as keyof typeof SEVERITY_CONFIG]?.color || ""}`}>
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {result.severity.level} · {result.severity.score}/100
+                  </Badge>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -399,22 +416,48 @@ export default function UploadReportPage() {
 
             <div className="bg-slate-50 rounded-xl p-4 border">
               <p className="text-xs font-bold text-slate-500 uppercase mb-2">AI Summary</p>
-              <p className="text-sm text-slate-700 leading-relaxed">{result.summary}</p>
+              {isEditing ? (
+                <Textarea 
+                  value={result.summary} 
+                  onChange={e => setResult({ ...result, summary: e.target.value })}
+                  className="text-sm bg-white"
+                  rows={3}
+                />
+              ) : (
+                <p className="text-sm text-slate-700 leading-relaxed">{result.summary}</p>
+              )}
             </div>
 
             <div className="grid md:grid-cols-3 gap-4">
               <div className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div>
+                <div className="w-full">
                   <p className="text-xs font-bold text-slate-500 uppercase">Location</p>
-                  <p className="text-sm text-slate-700">{result.location}</p>
+                  {isEditing ? (
+                    <Input 
+                      value={result.location} 
+                      onChange={e => setResult({ ...result, location: e.target.value })}
+                      className="text-sm h-8 mt-1 bg-white"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-700">{result.location}</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-start gap-2">
                 <Users className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                <div>
+                <div className="w-full">
                   <p className="text-xs font-bold text-slate-500 uppercase">Est. Affected</p>
-                  <p className="text-sm font-bold text-slate-800">{result.estimatedPeopleAffected} people</p>
+                  {isEditing ? (
+                    <Input 
+                      type="number"
+                      value={result.estimatedPeopleAffected} 
+                      onChange={e => setResult({ ...result, estimatedPeopleAffected: parseInt(e.target.value) || 0 })}
+                      className="text-sm h-8 mt-1 bg-white"
+                    />
+                  ) : (
+                    <p className="text-sm font-bold text-slate-800">{result.estimatedPeopleAffected} people</p>
+                  )}
                 </div>
               </div>
               <div>
